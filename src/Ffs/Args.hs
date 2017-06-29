@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-cse #-}
-module Args where
+module Ffs.Args where
 
 import Data.Text
 import Control.Lens.TH

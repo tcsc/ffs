@@ -7,7 +7,7 @@ import qualified System.Log.Handler.Simple as Log
 import System.Console.CmdArgs.Verbosity
 import System.IO
 
-import qualified Args
+import qualified Ffs.Args as Args
 
 
 main :: IO ()

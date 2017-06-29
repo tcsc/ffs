@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Jira  where
+module Ffs.Jira  where
 
 import Data.Text
 import Data.Aeson

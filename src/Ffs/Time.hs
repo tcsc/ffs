@@ -1,4 +1,4 @@
-module Time ( weekForDay ) where
+module Ffs.Time ( weekForDay ) where
 
 import Data.Tuple.Select
 import Data.Time.Calendar
