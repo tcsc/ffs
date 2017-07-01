@@ -3,27 +3,52 @@
 module Ffs.Args where
 
 import Data.Text
+import Data.Semigroup ((<>))
+import Network.URI
 import Control.Lens.TH
-import System.Console.CmdArgs
+import Options.Applicative
+import System.Log.Logger as Log
 
 data Options = Options
-  { _login :: String
-  , _password :: String
-  , _user :: String
-  , _url :: String
+  { _login :: Text
+  , _password :: Text
+  , _loglevel :: Log.Priority
+  , _url :: URI
+  , _insecure :: Bool
+  , _user :: Text
   }
-  deriving (Data, Eq, Show, Typeable)
+  deriving (Eq, Show)
 makeLenses ''Options
 
 options = Options
-  { _login = def &= explicit &= name "login" &= typ "USERNAME" &= help "Your JIRA login"
-  , _password = def &= explicit &= name "pwd"  &= typ "PASSWORD" &= help "Your JIRA password. Insecure."
-  , _user = def &= explicit &= name "user" &= help "The user to query. Defaults to the target user" &= typ "USERNAME"
-  , _url = def &= explicit &= name "url" &= help "The url of JIRA server" &= typ "URL"
-  }
-  &= verbosity
-  &= summary "Summary!"
-  &= help "Pull a timecard report out of JIRA"
+  <$> option text (long "login" <>
+                   short 'l' <>
+                   metavar "USERNAME" <>
+                   help "Your JIRA login")
+  <*> option text (long "password" <>
+                   short 'p' <>
+                   metavar "PASSWORD" <>
+                   help "Your JIRA password. INSECURE.")
+  <*> flag Log.INFO Log.DEBUG (long "verbose" <>
+                               short 'v' <>
+                               help "Be more verbose")
+  <*> option uri
+    ( long "jira" <>
+      help "The url of the jira server" <>
+      metavar "URL")
+  <*> switch (long "insecure" <> help "Disable TLS cert checking")
+  <*> argument text (metavar "USERNAME")
 
 parse :: IO Options
-parse = cmdArgs options
+parse = execParser opts
+  where
+    opts :: ParserInfo Options
+    opts = info (options <**> helper)
+      (fullDesc <> header "Pull a timecard report out of JIRA")
+
+uri :: ReadM URI
+uri = maybeReader parseURI
+
+text :: ReadM Text
+text = maybeReader $ Just . pack
+

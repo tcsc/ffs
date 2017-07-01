@@ -22,12 +22,17 @@ library
   default-extensions:  OverloadedStrings
   build-depends:       base >= 4.7 && < 5
                      , aeson
-                     , cmdargs
+                     , bytestring
+                     , connection
                      , hslogger
+                     , http-client-tls
                      , lens
+                     , network-uri
+                     , optparse-applicative
                      , text
                      , tuple
                      , time
+                     , urlencoded
                      , wreq
   default-language:    Haskell2010
 
