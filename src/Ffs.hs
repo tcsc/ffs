@@ -3,9 +3,14 @@ module Ffs
     ) where
 
 import Control.Lens
+import Data.List as L
+import Data.Map.Strict as Map
 import Data.Maybe
 import Data.Text as T
 import Data.Text.Encoding
+import Data.Time.Calendar
+import Data.Time.Clock
+import Data.Time.Format
 import Network.URI
 import Network.Connection      (TLSSettings (..))
 import Network.Wreq as Wreq
@@ -16,7 +21,8 @@ import System.IO
 import Text.Printf
 
 import Ffs.Args as Args
-import qualified Ffs.Jira as Jira
+import Ffs.Jira as Jira
+import Ffs.Time
 
 info = Log.infoM "main"
 debug = Log.debugM "main"
@@ -25,15 +31,22 @@ main :: IO ()
 main = do
   options <- Args.parse
   initLogger (options^.loglevel)
-  let jiraCfg = jiraConfig options
   let wreqCfg = wreqConfig options
+  today <- utctDay <$> getCurrentTime
 
-  info $ "JIRA host is: " ++ (show $ options^.url)
+  info $ "Today:" ++ (formatDay today)
+  let (start, end) = weekForDay today Friday
+
+  info $ printf "Range:  %s - %s:" (formatDay start) (formatDay end)
+
+  info $ "JIRA host: " ++ (show $ options^.url)
 
   info "Querying JIRA server..."
-  resp <- Jira.search wreqCfg jiraCfg (options^.user)
+  resp <- fromJust <$> Jira.search wreqCfg (options^.url) (options^.user) (start, end)
 
-  info $ printf "Response: " ++ (show resp)
+  let myIssues = L.foldl' (\m i -> Map.insert (i^.key) i m) Map.empty (resp^.issues)
+  info $ "You worked on " ++ (show $ Map.keys myIssues)
+
   return ()
 
 wreqConfig :: Args.Options -> Wreq.Options
@@ -50,8 +63,4 @@ initLogger level = do
   Log.updateGlobalLogger Log.rootLoggerName (update handler)
 
   where
-      update handler = Log.setLevel level . Log.setHandlers [handler]
-
-jiraConfig :: Args.Options -> Jira.Config
-jiraConfig options =
-  Jira.Config (options^.login) (options^.password) (options^.url)
+      update h = Log.setLevel level . Log.setHandlers [h]

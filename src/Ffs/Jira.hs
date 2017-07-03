@@ -1,12 +1,24 @@
 {-# LANGUAGE DeriveGeneric, TemplateHaskell #-}
-module Ffs.Jira  where
+module Ffs.Jira
+  ( SearchResult (..)
+  , key
+  , self
+  , SearchResults (..)
+  , startAt
+  , maxResults
+  , total
+  , issues
+  , search
+  ) where
 
 import Control.Lens
+import Data.Aeson
+import Data.Aeson.Types
 import qualified Data.ByteString as BS
 import Data.Text as Text
 import Data.Text.Encoding
-import Data.Aeson
-import Data.Aeson.Types
+import Data.Time.Calendar
+import Data.Time.Format
 import qualified Data.URLEncoded as URLEncoded
 import GHC.Generics
 
@@ -16,13 +28,15 @@ import Network.Wreq as Wreq
 import System.Log.Logger as Log
 import Text.Printf
 
+import Ffs.Time
+
 info = Log.infoM "jira"
 debug = Log.debugM "jira"
 
 
 data SearchResult = SearchResult
   { _key :: Text
-  , _url :: Text
+  , _self :: Text
   } deriving (Show, Eq)
 
 makeLenses ''SearchResult
@@ -51,38 +65,33 @@ instance FromJSON SearchResults where
     obj .: "issues"
   parseJSON invalid = typeMismatch "Search Result" invalid
 
-data Config = Config
-  { username :: Text
-  , password :: Text
-  , host :: URI
-  } deriving (Show)
-
-restPath = "/rest/api/2/search"
-
 escape :: String -> String
 escape = escapeURIString isAllowedInURI
 
-searchURI :: URI -> Text -> URI
-searchURI host userName =
-  host { uriPath = restPath
+searchURI :: URI -> Text -> (Day, Day) -> URI
+searchURI host userName (start, end) =
+  host { uriPath = "/rest/api/2/search"
        , uriQuery = query
        }
   where
      jql :: String
-     jql = printf "worklogAuthor=%s and worklogDate >= startOfWeek(-1d) AND worklogDate <= endOfWeek(-1d)" userName
+     jql = printf "worklogAuthor = %s AND worklogDate >= %s AND worklogDate <= %s" userName startText endText
 
      query :: String
      query = escape $ "?jql=" ++ jql
 
+     startText :: String
+     startText = formatDay start
 
+     endText :: String
+     endText = formatDay end
 
-search :: Wreq.Options -> Config -> Text -> IO (Maybe SearchResults)
-search options cfg target = do
-  debug $ "cfg: " ++ (show cfg)
+search :: Wreq.Options -> URI -> Text -> (Day, Day) -> IO (Maybe SearchResults)
+search options host target dateRange = do
   debug $ "AbsUrl: " ++ (show absoluteUrl)
   debug $ "Querying URL: " ++ (show url)
   resp <- Wreq.getWith options url >>= asJSON
   return $ resp ^. responseBody
   where
     url = (uriToString id absoluteUrl) ""
-    absoluteUrl = searchURI (host cfg) target
+    absoluteUrl = searchURI host target dateRange

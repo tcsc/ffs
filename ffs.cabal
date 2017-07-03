@@ -23,6 +23,7 @@ library
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , bytestring
+                     , containers
                      , connection
                      , hslogger
                      , http-client-tls
@@ -59,6 +60,8 @@ test-suite ffs-test
                      , ffs
                      , hspec
                      , lens
+                     , QuickCheck
+                     , quickcheck-arbitrary-adt 
                      , string-qq
                      , text
                      , time
