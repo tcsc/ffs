@@ -34,12 +34,12 @@ main = do
   let wreqCfg = wreqConfig options
   today <- utctDay <$> getCurrentTime
 
-  info $ "Today:" ++ (formatDay today)
-  let (start, end) = weekForDay today Friday
+  debug $ "Today: " ++ (formatDay today)
+  let (start, end) = weekForDay today (options^.lastDayOfWeek)
 
-  info $ printf "Range:  %s - %s:" (formatDay start) (formatDay end)
+  info $ printf "Querying week:  %s - %s:" (formatDay start) (formatDay end)
 
-  info $ "JIRA host: " ++ (show $ options^.url)
+  debug $ "JIRA host: " ++ (show $ options^.url)
 
   info "Querying JIRA server..."
   resp <- fromJust <$> Jira.search wreqCfg (options^.url) (options^.user) (start, end)

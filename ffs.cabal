@@ -19,6 +19,7 @@ library
                      , Ffs.Args
                      , Ffs.Jira
                      , Ffs.Time
+                     , Paths_ffs
   default-extensions:  OverloadedStrings
   build-depends:       base >= 4.7 && < 5
                      , aeson
@@ -61,7 +62,7 @@ test-suite ffs-test
                      , hspec
                      , lens
                      , QuickCheck
-                     , quickcheck-arbitrary-adt 
+                     , quickcheck-arbitrary-adt
                      , string-qq
                      , text
                      , time
