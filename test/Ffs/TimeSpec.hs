@@ -10,7 +10,7 @@ import Data.Time.Calendar
 import Ffs.Time
 
 spec :: Spec
-spec = describe "Tests" $ do
+spec = --describe "Tests" $ do
   intervalGenerator
 
 instance Arbitrary Day where

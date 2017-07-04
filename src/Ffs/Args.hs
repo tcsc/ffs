@@ -68,7 +68,10 @@ text = maybeReader $ Just . pack
 
 
 dayOfWeek :: ReadM DayOfWeek
-dayOfWeek = eitherReader $ \s ->
+dayOfWeek = eitherReader parseDayOfWeek
+
+parseDayOfWeek :: String -> Either String DayOfWeek
+parseDayOfWeek s =
   case s of
     "mon" -> Right Monday
     "tue" -> Right Tuesday

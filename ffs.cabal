@@ -52,7 +52,8 @@ test-suite ffs-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  other-modules:       Ffs.JiraSpec
+  other-modules:       Ffs.ArgsSpec
+                     , Ffs.JiraSpec
                      , Ffs.TimeSpec
   default-extensions:  OverloadedStrings
   build-depends:       base
