@@ -2,7 +2,9 @@ module Ffs
     ( main
     ) where
 
+import Control.Exception
 import Control.Lens
+import Control.Concurrent.ParallelIO
 import Data.List as L
 import Data.Map.Strict as Map
 import Data.Maybe
@@ -27,27 +29,50 @@ import Ffs.Time
 info = Log.infoM "main"
 debug = Log.debugM "main"
 
+type DateRange = (Day, Day)
+
 main :: IO ()
-main = do
-  options <- Args.parse
-  initLogger (options^.loglevel)
-  let wreqCfg = wreqConfig options
+main = catch main' (\e -> do
+  let _ = e :: SomeException
+  info "Failed!" )
+
+main' :: IO ()
+main' = do
+  args <- Args.parse
+  initLogger (args^.loglevel)
+  let wreqCfg = wreqConfig args
+
   today <- utctDay <$> getCurrentTime
+  debug $ "Today: " ++ formatDay today
+  let (start, end) = weekForDay today (args^.lastDayOfWeek)
+  info $ printf "Week range:  %s - %s:" (formatDay start) (formatDay end)
 
-  debug $ "Today: " ++ (formatDay today)
-  let (start, end) = weekForDay today (options^.lastDayOfWeek)
+  info "Fetching issues worked on..."
+  resp <- Jira.search wreqCfg (args^.url) (args^.user) (start, end)
+  let myIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
+                          Map.empty
+                          (resp^.issues)
+  let issueKeys = Map.keys myIssues
+  info $ "You worked on " ++ show issueKeys
 
-  info $ printf "Querying week:  %s - %s:" (formatDay start) (formatDay end)
-
-  debug $ "JIRA host: " ++ (show $ options^.url)
-
-  info "Querying JIRA server..."
-  resp <- fromJust <$> Jira.search wreqCfg (options^.url) (options^.user) (start, end)
-
-  let myIssues = L.foldl' (\m i -> Map.insert (i^.key) i m) Map.empty (resp^.issues)
-  info $ "You worked on " ++ (show $ Map.keys myIssues)
+  fetchWorkLog wreqCfg args (start, end) issueKeys
 
   return ()
+
+fetchWorkLog :: Wreq.Options ->
+                Args.Options ->
+                DateRange ->
+                [Text] -> IO (Map Text WorkLogItems)
+fetchWorkLog cfg args (start, end) keys = do
+  info "Fetching work logs..."
+  let tasks = L.map getLog keys
+  Map.fromList <$> parallel tasks
+  where
+    getLog :: Text -> IO (Text, WorkLogItems)
+    getLog k = do
+      r <- Jira.getWorkLog cfg (args^.url) k
+      return (k, r)
+
 
 wreqConfig :: Args.Options -> Wreq.Options
 wreqConfig args =
@@ -55,7 +80,7 @@ wreqConfig args =
       uid = encodeUtf8 (args ^. login)
       pwd = encodeUtf8 (args ^. password)
   in defaults & auth ?~ basicAuth uid pwd
-              & manager .~ Left (tlsSettings)
+              & manager .~ Left tlsSettings
 
 initLogger :: Log.Priority -> IO ()
 initLogger level = do
