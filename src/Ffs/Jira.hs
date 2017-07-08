@@ -37,6 +37,7 @@ import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Text.Encoding
 import Data.Time.Format
+import Data.Time.LocalTime
 import Data.Time.ISO8601
 import qualified Data.URLEncoded as URLEncoded
 import GHC.Generics
@@ -52,7 +53,11 @@ import Ffs.Time
 info = Log.infoM "jira"
 debug = Log.debugM "jira"
 
+--instance FromJSON ZonedTime where
+--  parseJSON = withString "ISO datetime" $ \s ->
 
+
+-- | An issue reference returned as a search result
 data SearchResult = SearchResult
   { _issueKey :: Text
   , _issueURI :: Text
@@ -65,6 +70,7 @@ instance FromJSON SearchResult where
     <$> obj .: "key"
     <*> obj .: "self"
 
+-- | Search results from a JQL query returning a list of issues
 data SearchResults = SearchResults
   { _issuesStartAt :: Int
   , _issuesMaxResults :: Int
@@ -80,6 +86,7 @@ instance FromJSON SearchResults where
     <*> obj .: "total"
     <*> obj .: "issues"
 
+-- | A brief description of a JIRA user account
 data User = User
   { _userName :: Text
   , _userDisplayName :: Text
@@ -94,10 +101,17 @@ instance FromJSON User where
     <*> obj .: "displayName"
     <*> obj .: "self"
 
+instance Eq ZonedTime where
+  (==) l r =
+    if zonedTimeZone l == zonedTimeZone r
+      then zonedTimeToLocalTime l == zonedTimeToLocalTime r
+      else zonedTimeToUTC l == zonedTimeToUTC r
+
+-- | A single work log entry
 data WorkLogItem  = WorkLogItem
   { _logUrl :: Text
   , _logComment :: Text
-  , _logWorkStarted :: UTCTime
+  , _logWorkStarted :: ZonedTime
   , _logAuthor :: User
   , _logTimeSpent :: Int
   }
@@ -112,6 +126,8 @@ instance FromJSON WorkLogItem where
     <*> obj .: "author"
     <*> obj .: "timeSpentSeconds"
 
+-- | A collection of work log items. We assume that they all relate to the
+-- same issue.
 data WorkLogItems = WorkLogItems
   { _logStartsAt :: Int
   , _logMaxResults :: Int
@@ -128,9 +144,12 @@ instance FromJSON WorkLogItems where
     <*> obj .: "total"
     <*> obj .: "worklogs"
 
+-- | URL escape a string
 escape :: String -> String
 escape = escapeURIString isAllowedInURI
 
+-- | Generate an URL for the search endpoint, complete with a JQL query for
+-- issues worked on by a given user in the supplied date range.
 searchURI :: URI -> Text -> (Day, Day) -> URI
 searchURI host userName (start, end) =
   host { uriPath = "/rest/api/2/search"
@@ -159,8 +178,7 @@ search options host target dateRange = do
 
 getWorkLog :: Wreq.Options -> URI -> Text -> IO WorkLogItems
 getWorkLog options host key = do
-  info $ printf "Fetching work log for %s..." key
-  debug $ printf "Fetching work log from %s" url
+  debug $ printf "Starting fetch of log for %s..." key
   response <- Wreq.getWith options url >>= asJSON
   return $ response^.responseBody
 

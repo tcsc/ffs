@@ -5,7 +5,8 @@ import Data.Aeson as Aeson
 import Data.ByteString
 import Data.Maybe
 import Data.String.QQ
-import Data.Time.ISO8601
+import Data.Time.LocalTime
+import Data.Time.Format
 import Test.Hspec
 
 import Ffs.Jira as Jira
@@ -18,6 +19,9 @@ jsonParsers :: Spec
 jsonParsers = describe "JSON Parsers" $ do
   searchResultParser
   workLogParser
+
+date :: String -> ZonedTime
+date s = fromJust $ parseTimeM True defaultTimeLocale "%FT%T%Q%z" s
 
 searchResultParser :: Spec
 searchResultParser = describe "Search result parser" $ do
@@ -110,7 +114,7 @@ workLogParser = describe "Work log parser" $ do
           Jira.WorkLogItem {
               _logUrl = "http://www.example.com/jira/rest/api/2/issue/10010/worklog/10000"
             , _logComment = "I did some work here."
-            , _logWorkStarted = fromJust $ parseISO8601 "2013-08-23T16:57:35.985+0200"
+            , _logWorkStarted = date "2013-08-23T16:57:35.985+0200"
             , _logAuthor = Jira.User {
                 _userName = "fred"
               , _userDisplayName = "Fred F. User"
