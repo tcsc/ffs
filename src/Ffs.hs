@@ -137,16 +137,11 @@ fetchWorkLog cfg args (start, end) keys = do
       return (k, r)
 
 -- | Takes a complete work log and filters out the items we're not interested
--- in, i.e. things our target user didn't work on and are outside or date range
+-- in, i.e. things our target user didn't work on and are outside or date
+-- range.
 --
--- Where this gets a bit hairy is that our date range is in local time and the
--- work log items' timestamps are in UTC. This means that we can't simply compare
--- the UTC day for each and be done; first of all we need to convert the UTC
--- timestamp to the local time *at the time of the work log* and compare the
--- resulting local day.
---
--- We also can't simply use the current local timezone, because DST might have
--- kicked in or finished during our reporting interval.
+-- Note that we convert the log timestamp into our local timezone before
+-- comparing.
 --
 filterWorkLog :: TimeZone -> DateRange -> Text -> WorkLogItems -> [WorkLogItem]
 filterWorkLog localTimeZone (start, end) username log =
