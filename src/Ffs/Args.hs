@@ -32,16 +32,19 @@ options =
     <$> option text (long "login" <>
                      short 'l' <>
                      metavar "USERNAME" <>
+                     value "" <>
                      help "Your JIRA login")
     <*> option text (long "password" <>
                      short 'p' <>
                      metavar "PASSWORD" <>
+                     internal <>
                      help "Your JIRA password. INSECURE.")
     <*> flag Log.INFO Log.DEBUG (long "verbose" <>
                                  short 'v' <>
                                  help "Be more verbose")
     <*> option uri (long "jira" <>
                     help "The url of the jira server" <>
+                    value nullURI <>
                     metavar "URL")
     <*> switch (long "insecure" <>
                 help "Disable TLS cert checking")

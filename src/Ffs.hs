@@ -16,7 +16,6 @@ import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Time.LocalTime
-import Data.Time.ISO8601
 import Network.URI
 import Network.Connection      (TLSSettings (..))
 import Network.Wreq as Wreq
@@ -27,6 +26,7 @@ import System.IO
 import Text.Printf
 
 import Ffs.Args as Args
+import Ffs.ConfigFile as ConfigFile
 import Ffs.Jira as Jira
 import Ffs.Time
 
@@ -38,12 +38,15 @@ type DateRange = (Day, Day)
 main :: IO ()
 main = catch main' (\e -> do
   let _ = e :: SomeException
-  info "Failed!" )
+  info $ "Failed!" ++ show e )
 
 main' :: IO ()
 main' = do
-  args <- Args.parse
-  initLogger (args^.loglevel)
+  cli <- Args.parse
+  initLogger (cli^.loglevel)
+
+  args <- loadOptions cli
+
   let wreqCfg = wreqConfig args
 
   localTimeZone <- getCurrentTimeZone
@@ -75,6 +78,34 @@ main' = do
 --  mapM (info . showIssue) ls
 
   return ()
+
+-- | Attempts to load a config file from the user's home directory. If the file
+-- exists and is parseable, the config file settings are merged with those
+-- provided by the user on the CLI.
+loadOptions :: Args.Options -> IO (Args.Options)
+loadOptions cli = do
+  path <- configFilePath
+  debug $ printf "Loading config file from %s..." path
+  conf <- loadConfig path
+  return $ maybe cli (\cfg -> mergeOptions cfg cli) conf
+
+
+-- | Merges the command-line options with those loaded from file. Produces a
+-- new Args.Options with e file-base settings overridden by command line args.
+mergeOptions :: Args.Options -> Args.Options -> Args.Options
+mergeOptions file cmdline = Args.Options {
+      _login = overrideIf "" (file^.login) (cmdline^.login)
+    , _password = overrideIf "" (file^.password) (cmdline^.password)
+    , _loglevel = cmdline^.loglevel
+    , _url = overrideIf nullURI (file^.url) (cmdline^.url)
+    , _insecure = overrideIf False (file^.insecure) (cmdline^.insecure)
+    , _lastDayOfWeek = cmdline^.lastDayOfWeek
+    , _user = cmdline^.user
+    }
+  where
+    overrideIf :: Eq a => a -> a -> a -> a
+    overrideIf null base override =
+      if override == null then base else override
 
 showIssue :: Text -> [WorkLogItem] -> IO ()
 showIssue key items = do

@@ -17,6 +17,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Ffs
                      , Ffs.Args
+                     , Ffs.ConfigFile
                      , Ffs.Jira
                      , Ffs.Time
                      , Paths_ffs
@@ -25,11 +26,14 @@ library
                      , aeson
                      , bytestring
                      , containers
+                     , ConfigFile
                      , connection
+                     , directory
+                     , filepath
                      , hslogger
                      , http-client-tls
-                     , iso8601-time
                      , lens
+                     , mtl
                      , network-uri
                      , optparse-applicative
                      , parallel-io
@@ -65,7 +69,6 @@ test-suite ffs-test
                      , bytestring
                      , ffs
                      , hspec
-                     , iso8601-time
                      , lens
                      , QuickCheck
                      , quickcheck-arbitrary-adt

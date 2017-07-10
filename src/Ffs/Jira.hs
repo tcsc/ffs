@@ -38,7 +38,6 @@ import Data.Time.Clock
 import Data.Text.Encoding
 import Data.Time.Format
 import Data.Time.LocalTime
-import Data.Time.ISO8601
 import qualified Data.URLEncoded as URLEncoded
 import GHC.Generics
 
@@ -52,10 +51,6 @@ import Ffs.Time
 
 info = Log.infoM "jira"
 debug = Log.debugM "jira"
-
---instance FromJSON ZonedTime where
---  parseJSON = withString "ISO datetime" $ \s ->
-
 
 -- | An issue reference returned as a search result
 data SearchResult = SearchResult
@@ -170,6 +165,7 @@ searchURI host userName (start, end) =
 
 search :: Wreq.Options -> URI -> Text -> (Day, Day) -> IO SearchResults
 search options host target dateRange = do
+    debug $ printf "Fetching %s..." url
     resp <- Wreq.getWith options url >>= asJSON
     return $ resp ^. responseBody
     where
