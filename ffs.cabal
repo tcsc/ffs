@@ -33,7 +33,6 @@ library
                      , hslogger
                      , http-client-tls
                      , lens
-                     , mtl
                      , network-uri
                      , optparse-applicative
                      , parallel-io
@@ -61,6 +60,7 @@ test-suite ffs-test
   main-is:             Spec.hs
   other-modules:       FfsSpec
                      , Ffs.ArgsSpec
+                     , Ffs.ConfigFileSpec
                      , Ffs.JiraSpec
                      , Ffs.TimeSpec
   default-extensions:  OverloadedStrings
@@ -70,6 +70,7 @@ test-suite ffs-test
                      , ffs
                      , hspec
                      , lens
+                     , network-uri
                      , QuickCheck
                      , quickcheck-arbitrary-adt
                      , string-qq

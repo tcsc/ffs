@@ -145,32 +145,20 @@ escape = escapeURIString isAllowedInURI
 
 -- | Generate an URL for the search endpoint, complete with a JQL query for
 -- issues worked on by a given user in the supplied date range.
-searchURI :: URI -> Text -> (Day, Day) -> URI
-searchURI host userName (start, end) =
+searchURI :: URI -> Text -> URI
+searchURI host jql =
   host { uriPath = "/rest/api/2/search"
-       , uriQuery = query
+       , uriQuery = printf "?jql=%s" (escape $ Text.unpack jql)
        }
-  where
-     jql :: String
-     jql = printf "worklogAuthor = %s AND worklogDate >= %s AND worklogDate <= %s" userName startText endText
 
-     query :: String
-     query = escape $ "?jql=" ++ jql
-
-     startText :: String
-     startText = formatDay start
-
-     endText :: String
-     endText = formatDay end
-
-search :: Wreq.Options -> URI -> Text -> (Day, Day) -> IO SearchResults
-search options host target dateRange = do
+search :: Wreq.Options -> URI -> Text -> IO SearchResults
+search options host query = do
     debug $ printf "Fetching %s..." url
     resp <- Wreq.getWith options url >>= asJSON
     return $ resp ^. responseBody
     where
         url = (uriToString id absoluteUrl) ""
-        absoluteUrl = searchURI host target dateRange
+        absoluteUrl = searchURI host query
 
 getWorkLog :: Wreq.Options -> URI -> Text -> IO WorkLogItems
 getWorkLog options host key = do

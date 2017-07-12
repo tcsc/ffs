@@ -24,6 +24,25 @@ data DayOfWeek
   | Sunday
   deriving (Generic, Show, Eq)
 
+instance Read DayOfWeek where
+  readsPrec _ value = tryParse [
+      ("mon", Monday)
+    , ("tue", Tuesday)
+    , ("wed", Wednesday)
+    , ("thu", Thursday)
+    , ("fri", Friday)
+    , ("sat", Saturday)
+    , ("sun", Sunday)
+    ]
+    where
+      tryParse attempts =
+        case attempts of
+          [] -> []
+          (attempt, day) : remainder ->
+            if (Prelude.take 3 value) == attempt
+               then [(day, Prelude.drop 3 value)]
+               else tryParse remainder
+
 -- | Generates an inclusive date range representing a week that includes a given day
 weekForDay :: Day -> DayOfWeek -> (Day, Day)
 weekForDay day weekEndsOn = (rangeStart, rangeEnd)

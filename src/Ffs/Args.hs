@@ -16,12 +16,12 @@ import Text.Printf
 import Ffs.Time (DayOfWeek(..))
 
 data Options = Options
-  { _login :: Text
-  , _password :: Text
+  { _login :: Maybe Text
+  , _password :: Maybe Text
   , _loglevel :: Log.Priority
-  , _url :: URI
-  , _insecure :: Bool
-  , _lastDayOfWeek :: DayOfWeek
+  , _url :: Maybe URI
+  , _insecure :: Maybe Bool
+  , _lastDayOfWeek :: Maybe DayOfWeek
   , _user :: Text
   } deriving (Eq, Show)
 
@@ -29,31 +29,28 @@ makeLenses ''Options
 
 options =
   Options
-    <$> option text (long "login" <>
-                     short 'l' <>
-                     metavar "USERNAME" <>
-                     value "" <>
-                     help "Your JIRA login")
-    <*> option text (long "password" <>
-                     short 'p' <>
-                     metavar "PASSWORD" <>
-                     internal <>
-                     help "Your JIRA password. INSECURE.")
+    <$> (optional $ option text (long "login" <>
+                                 short 'l' <>
+                                 metavar "USERNAME" <>
+                                 value "" <>
+                                 help "Your JIRA login"))
+    <*> (optional $ option text (long "password" <>
+                                 short 'p' <>
+                                 metavar "PASSWORD" <>
+                                 internal <>
+                                 help "Your JIRA password. INSECURE."))
     <*> flag Log.INFO Log.DEBUG (long "verbose" <>
                                  short 'v' <>
                                  help "Be more verbose")
-    <*> option uri (long "jira" <>
-                    help "The url of the jira server" <>
-                    value nullURI <>
-                    metavar "URL")
-    <*> switch (long "insecure" <>
-                help "Disable TLS cert checking")
-    <*> option dayOfWeek (long "week-ends-on" <>
-                          short 'e' <>
-                          metavar "DAY" <>
-                          value Friday <>
-                          showDefault <>
-                          help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)")
+    <*> (optional $ option uri (long "jira" <>
+                               help "The url of the jira server" <>
+                               metavar "URL"))
+    <*> (optional $ switch (long "insecure" <>
+                            help "Disable TLS cert checking"))
+    <*> (optional $ option dayOfWeek (long "week-ends-on" <>
+                                      short 'e' <>
+                                      metavar "DAY" <>
+                                      help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)"))
     <*> argument text (metavar "USERNAME")
 
 parse :: IO Options
@@ -68,7 +65,6 @@ uri = maybeReader parseURI
 
 text :: ReadM Text
 text = maybeReader $ Just . pack
-
 
 dayOfWeek :: ReadM DayOfWeek
 dayOfWeek = eitherReader parseDayOfWeek

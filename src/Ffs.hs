@@ -34,20 +34,34 @@ info = Log.infoM "main"
 debug = Log.debugM "main"
 
 type DateRange = (Day, Day)
+type Credentials = (Text, Text)
 
+-- | Top level main. A thin wrapper around main' for trapping and reporting
+-- errors.
 main :: IO ()
 main = catch main' (\e -> do
   let _ = e :: SomeException
-  info $ "Failed!" ++ show e )
+  info $ printf "Failed: %s" (show e) )
 
+-- | The part that does all the heavy lifting
+--
+-- TODO: Decouple the program options from the record returned by the command
+--       line parser. It's not a good fit for doing double duty when merged
+--       into the file-based config.
 main' :: IO ()
 main' = do
+  hSetBuffering stdout NoBuffering
+
+  -- Parse command line args and set up the logger
   cli <- Args.parse
   initLogger (cli^.loglevel)
 
+  -- Parse the config file and merge settings with the command line args
   args <- loadOptions cli
 
-  let wreqCfg = wreqConfig args
+  -- get the user credentials, asking the user on the command line if unset.
+  credentials <- getCredentials args
+  let wreqCfg = wreqConfig credentials args
 
   localTimeZone <- getCurrentTimeZone
   now <- getZonedTime
@@ -55,13 +69,18 @@ main' = do
 
   let today = localDay (zonedTimeToLocalTime now)
   debug $ "Today: " ++ formatDay today
-  let dateRange = weekForDay today (args^.lastDayOfWeek)
+  let dateRange = weekForDay today (fromJust $ args^.lastDayOfWeek)
   info $ printf "Week range:  %s - %s:" (formatDay $ fst dateRange)
     (formatDay $ snd dateRange)
 
+  url <- case (args^.url) of
+    Just u -> return u
+    Nothing -> error "No JIRA URL set"
+
   --
   info "Fetching issues worked on..."
-  resp <- Jira.search wreqCfg (args^.url) (args^.user) dateRange
+  let query = buildQuery (args^.user) dateRange
+  resp <- Jira.search wreqCfg url query
   let myIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
                           Map.empty
                           (resp^.issues)
@@ -71,7 +90,7 @@ main' = do
   -- get the work logs from JIRA and filter out any that aren't in our range
   -- of interest
   log <- Map.map (filterWorkLog localTimeZone dateRange (args^.user))
-    <$> fetchWorkLog wreqCfg args dateRange issueKeys
+    <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
   traverseWithKey showIssue log
 --  let ls = log ! (L.head issueKeys)
@@ -86,26 +105,53 @@ loadOptions :: Args.Options -> IO (Args.Options)
 loadOptions cli = do
   path <- configFilePath
   debug $ printf "Loading config file from %s..." path
-  conf <- loadConfig path
-  return $ maybe cli (\cfg -> mergeOptions cfg cli) conf
-
+  mergeOptions cli <$> loadConfig path
 
 -- | Merges the command-line options with those loaded from file. Produces a
--- new Args.Options with e file-base settings overridden by command line args.
-mergeOptions :: Args.Options -> Args.Options -> Args.Options
-mergeOptions file cmdline = Args.Options {
-      _login = overrideIf "" (file^.login) (cmdline^.login)
-    , _password = overrideIf "" (file^.password) (cmdline^.password)
-    , _loglevel = cmdline^.loglevel
-    , _url = overrideIf nullURI (file^.url) (cmdline^.url)
-    , _insecure = overrideIf False (file^.insecure) (cmdline^.insecure)
-    , _lastDayOfWeek = cmdline^.lastDayOfWeek
-    , _user = cmdline^.user
-    }
+-- new Args.Options with file-based settings overridden by command line args.
+mergeOptions :: Args.Options -> Config -> Args.Options
+mergeOptions cmdline file = Args.Options {
+    _login = override (file^.cfgLogin) (cmdline^.login)
+  , _password = override (file^.cfgPassword) (cmdline^.password)
+  , _loglevel = cmdline^.loglevel
+  , _url = override (file^.cfgHost) (cmdline^.url)
+  , _insecure = overrideOrDef (file^.cfgInsecure) (cmdline^.insecure) False
+  , _lastDayOfWeek = overrideOrDef (file^.cfgEndOfWeek) (cmdline^.lastDayOfWeek) Friday
+  , _user = cmdline^.user
+  }
   where
-    overrideIf :: Eq a => a -> a -> a -> a
-    overrideIf null base override =
-      if override == null then base else override
+    override :: Maybe a -> Maybe a -> Maybe a
+    override fileValue cliValue =
+      if isJust cliValue then cliValue else fileValue
+
+    overrideOrDef :: Maybe a -> Maybe a -> a -> Maybe a
+    overrideOrDef fileValue cliValue defValue =
+      Just $ fromMaybe defValue (override fileValue cliValue)
+
+withEcho :: Bool -> IO a -> IO a
+withEcho echo action = do
+  oldValue <- hGetEcho stdin
+  bracket_ (hSetEcho stdin echo) (hSetEcho stdin oldValue) action
+
+getCredentials :: Args.Options -> IO Credentials
+getCredentials args = do
+  login <- askIf (args^.login) "JIRA login: "
+  pwd <- withEcho False $ askIf (args^.password) "JIRA password: "
+  return (login, pwd)
+  where
+    askIf :: Maybe Text -> String -> IO Text
+    askIf val text =
+      case val of
+        Just v -> return v
+        Nothing -> T.pack <$> (putStr text >> getLine)
+
+buildQuery :: Text -> DateRange -> Text
+buildQuery user (start, end) =
+  let s = formatDay start
+      e = formatDay end
+      jql = printf "worklogAuthor = %s AND worklogDate >= %s AND worklogDate <= %s"
+        user s e
+  in T.pack jql
 
 showIssue :: Text -> [WorkLogItem] -> IO ()
 showIssue key items = do
@@ -123,17 +169,17 @@ showItem i =
 -- in parallel.
 --
 fetchWorkLog :: Wreq.Options ->
-                Args.Options ->
+                URI ->
                 DateRange ->
                 [Text] -> IO (Map Text WorkLogItems)
-fetchWorkLog cfg args (start, end) keys = do
+fetchWorkLog cfg url (start, end) keys = do
   info "Fetching work logs..."
   let tasks = L.map getLog keys
   Map.fromList <$> parallel tasks
   where
     getLog :: Text -> IO (Text, WorkLogItems)
     getLog k = do
-      r <- Jira.getWorkLog cfg (args^.url) k
+      r <- Jira.getWorkLog cfg url k
       return (k, r)
 
 -- | Takes a complete work log and filters out the items we're not interested
@@ -157,11 +203,11 @@ filterWorkLog localTimeZone (start, end) username log =
          (day <= end)
 
 -- | Generates a Wreq configuration from the application options.
-wreqConfig :: Args.Options -> Wreq.Options
-wreqConfig args =
+wreqConfig :: Credentials -> Args.Options -> Wreq.Options
+wreqConfig (username, password) args =
   let tlsSettings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
-      uid = encodeUtf8 (args ^. login)
-      pwd = encodeUtf8 (args ^. password)
+      uid = encodeUtf8 username
+      pwd = encodeUtf8 password
   in defaults & auth ?~ basicAuth uid pwd
               & manager .~ Left tlsSettings
 
