@@ -92,10 +92,6 @@ main' = do
   log <- Map.map (filterWorkLog localTimeZone dateRange (args^.user))
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
-  traverseWithKey showIssue log
---  let ls = log ! (L.head issueKeys)
---  mapM (info . showIssue) ls
-
   return ()
 
 -- | Attempts to load a config file from the user's home directory. If the file
@@ -145,6 +141,8 @@ getCredentials args = do
         Just v -> return v
         Nothing -> T.pack <$> (putStr text >> getLine)
 
+-- | Builds a jql query requesting issues worked on by a given user between
+-- two dates (inclusive)
 buildQuery :: Text -> DateRange -> Text
 buildQuery user (start, end) =
   let s = formatDay start
@@ -152,18 +150,6 @@ buildQuery user (start, end) =
       jql = printf "worklogAuthor = %s AND worklogDate >= %s AND worklogDate <= %s"
         user s e
   in T.pack jql
-
-showIssue :: Text -> [WorkLogItem] -> IO ()
-showIssue key items = do
-  info $ printf "%s" key
-  mapM (info . showItem) items
-  return ()
-
-showItem :: WorkLogItem -> String
-showItem i =
-  let t = formatTime defaultTimeLocale "%FT%R%Q%z" (i^.logWorkStarted)
-      c = i^.logComment
-  in printf "\t%s: %s" t c
 
 -- | Fetches the work logs for all the tickets in the keys list, potentially
 -- in parallel.
@@ -195,7 +181,7 @@ filterWorkLog localTimeZone (start, end) username log =
   where
     p :: WorkLogItem -> Bool
     p item =
-      -- concert worklog date to local time via UTC
+      -- convert worklog date to local time via UTC
       let logTimeStampUTC = zonedTimeToUTC (item^.logWorkStarted)
           day = localDay $ utcToLocalTime localTimeZone logTimeStampUTC
       in ((item^.logAuthor^.userName) == username) &&
@@ -205,11 +191,15 @@ filterWorkLog localTimeZone (start, end) username log =
 -- | Generates a Wreq configuration from the application options.
 wreqConfig :: Credentials -> Args.Options -> Wreq.Options
 wreqConfig (username, password) args =
-  let tlsSettings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
+  let insecureTlsSettings = TLSSettingsSimple True False False
+      managerSettings = mkManagerSettings insecureTlsSettings Nothing
       uid = encodeUtf8 username
       pwd = encodeUtf8 password
-  in defaults & auth ?~ basicAuth uid pwd
-              & manager .~ Left tlsSettings
+      opts = defaults & auth ?~ basicAuth uid pwd
+  in if fromJust (args^.insecure)
+    then opts & manager .~ Left managerSettings
+    else opts
+
 
 -- | Initialises the haskell logging system based on the verbosity level set
 -- by the user.
@@ -217,6 +207,5 @@ initLogger :: Log.Priority -> IO ()
 initLogger level = do
   handler <- Log.streamHandler stdout Log.DEBUG
   Log.updateGlobalLogger Log.rootLoggerName (update handler)
-
   where
       update h = Log.setLevel level . Log.setHandlers [h]
