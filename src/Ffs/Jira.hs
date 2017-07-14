@@ -144,11 +144,11 @@ instance FromJSON WorkLogItems where
 escape :: String -> String
 escape = escapeURIString isAllowedInURI
 
-search :: Wreq.Options -> URI -> Text -> IO SearchResults
+search :: Wreq.Options -> URI -> Text -> IO [SearchResult]
 search options host jql = do
   debug $ printf "Fetching %s..." url
   resp <- Wreq.getWith options url >>= asJSON
-  return $ resp ^. responseBody
+  return $ resp ^. responseBody ^. issues
   where
     url = (uriToString id completeUrl) ""
     completeUrl = host
@@ -156,11 +156,11 @@ search options host jql = do
       , uriQuery = printf "?jql=%s" (escape $ Text.unpack jql)
       }
 
-getWorkLog :: Wreq.Options -> URI -> Text -> IO WorkLogItems
+getWorkLog :: Wreq.Options -> URI -> Text -> IO [WorkLogItem]
 getWorkLog options host key = do
   debug $ printf "Starting fetch of log for %s..." key
   response <- Wreq.getWith options url >>= asJSON
-  return $ response ^. responseBody
+  return $ response ^. responseBody ^. logItems
   where
     url = (uriToString id absoluteUrl) ""
     absoluteUrl = host

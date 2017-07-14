@@ -80,10 +80,10 @@ main' = do
   --
   info "Fetching issues worked on..."
   let query = buildQuery (args^.user) dateRange
-  resp <- Jira.search wreqCfg url query
+  issues <- Jira.search wreqCfg url query
   let myIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
                           Map.empty
-                          (resp^.issues)
+                          issues
   let issueKeys = Map.keys myIssues
   info $ "You worked on " ++ show issueKeys
 
@@ -157,13 +157,13 @@ buildQuery user (start, end) =
 fetchWorkLog :: Wreq.Options ->
                 URI ->
                 DateRange ->
-                [Text] -> IO (Map Text WorkLogItems)
+                [Text] -> IO (Map Text [WorkLogItem])
 fetchWorkLog cfg url (start, end) keys = do
   info "Fetching work logs..."
   let tasks = L.map getLog keys
   Map.fromList <$> parallel tasks
   where
-    getLog :: Text -> IO (Text, WorkLogItems)
+    getLog :: Text -> IO (Text, [WorkLogItem])
     getLog k = do
       r <- Jira.getWorkLog cfg url k
       return (k, r)
@@ -175,9 +175,8 @@ fetchWorkLog cfg url (start, end) keys = do
 -- Note that we convert the log timestamp into our local timezone before
 -- comparing.
 --
-filterWorkLog :: TimeZone -> DateRange -> Text -> WorkLogItems -> [WorkLogItem]
-filterWorkLog localTimeZone (start, end) username log =
-  L.filter p (log ^. logItems)
+filterWorkLog :: TimeZone -> DateRange -> Text -> [WorkLogItem] -> [WorkLogItem]
+filterWorkLog localTimeZone (start, end) username = L.filter p
   where
     p :: WorkLogItem -> Bool
     p item =

@@ -5,13 +5,15 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import Test.QuickCheck.Arbitrary.ADT
+import Data.Maybe
 import Data.Time.Calendar
 
 import Ffs.Time
 
 spec :: Spec
-spec = --describe "Tests" $ do
+spec = describe "Tests" $ do
   intervalGenerator
+  dayOfWeekParser
 
 instance Arbitrary Day where
   arbitrary = do
@@ -70,3 +72,14 @@ intervalGenerator = describe "Interval generation" $ do
           let (start, end) = weekForDay day endOfWeek
           in (end `diffDays` start) == 6
 
+dayOfWeekParser :: Spec
+dayOfWeekParser = describe "The day-of-week parser" $ do
+  it "Must parse a day TLA" $ do
+    let text = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    let days = [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+    let result = map read text
+    result `shouldBe` days
+
+  it "Must fail on something not a day" $ do
+    let result = (fst <$> listToMaybe (reads "narf")) :: Maybe DayOfWeek
+    result `shouldBe` Nothing

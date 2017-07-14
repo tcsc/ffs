@@ -27,6 +27,16 @@ data Options = Options
 
 makeLenses ''Options
 
+defaultArgs = Options
+  { _login = Nothing
+  , _password = Nothing
+  , _loglevel = Log.INFO
+  , _url = Nothing
+  , _insecure = Nothing
+  , _lastDayOfWeek = Nothing
+  , _user = ""
+}
+
 options =
   Options
     <$> (optional $ option text (long "login" <>
@@ -47,10 +57,10 @@ options =
                                metavar "URL"))
     <*> (optional $ switch (long "insecure" <>
                             help "Disable TLS cert checking"))
-    <*> (optional $ option dayOfWeek (long "week-ends-on" <>
-                                      short 'e' <>
-                                      metavar "DAY" <>
-                                      help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)"))
+    <*> (optional $ option auto (long "week-ends-on" <>
+                                 short 'e' <>
+                                 metavar "DAY" <>
+                                 help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)"))
     <*> argument text (metavar "USERNAME")
 
 parse :: IO Options
@@ -65,18 +75,3 @@ uri = maybeReader parseURI
 
 text :: ReadM Text
 text = maybeReader $ Just . pack
-
-dayOfWeek :: ReadM DayOfWeek
-dayOfWeek = eitherReader parseDayOfWeek
-
-parseDayOfWeek :: String -> Either String DayOfWeek
-parseDayOfWeek s =
-  case s of
-    "mon" -> Right Monday
-    "tue" -> Right Tuesday
-    "wed" -> Right Wednesday
-    "thu" -> Right Thursday
-    "fri" -> Right Friday
-    "sat" -> Right Saturday
-    "sun" -> Right Sunday
-    _ -> Left $ "Invalid day string: " ++ s
