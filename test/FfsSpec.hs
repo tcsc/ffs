@@ -5,14 +5,20 @@ import Data.Maybe
 import Data.Time.Calendar
 import Data.Time.Format
 import Data.Time.LocalTime
+import Control.Lens
+import Network.URI
 import Test.Hspec
 
 import Ffs
+import Ffs.Args as Args
+import Ffs.ConfigFile as Cfg
 import Ffs.Jira as Jira
+import Ffs.Time as Time
 
 spec :: Spec
 spec = describe "Top level tests" $ do
   workLogFilterSpec
+  configMergeSpec
 
 defaultUser = Jira.User {
     _userName = "default"
@@ -30,6 +36,71 @@ log = Jira.WorkLogItem {
   , _logAuthor = defaultUser
   , _logTimeSpent = 1
   }
+
+configMergeSpec :: Spec
+configMergeSpec = describe "Merging config file & command line args" $ do
+  context "Username" $ do
+    defaultSpec optUsername ""
+    setByConfigSpec cfgLogin optUsername "potato"
+    setByCliSpec login optUsername "duck"
+    cliOverridesConfigSpec login "duck" cfgLogin "potato" optUsername
+
+  context "Password" $ do
+    defaultSpec optPassword ""
+    setByConfigSpec cfgPassword optPassword "potato"
+    setByCliSpec password optPassword "duck"
+    cliOverridesConfigSpec password "duck" cfgPassword "potato" optPassword
+
+  context "Jira Host" $ do
+    let cfgUrl = fromJust $ parseURI "http://example.com/config"
+    let cliUrl = fromJust $ parseURI "http://cli.com/cli"
+    defaultSpec optJiraHost nullURI
+    setByConfigSpec cfgHost optJiraHost cfgUrl
+    setByCliSpec url optJiraHost cliUrl
+    cliOverridesConfigSpec url cliUrl cfgHost cfgUrl optJiraHost
+
+  context "Use insecure TLS" $ do
+    defaultSpec optUseInsecureTLS False
+    setByConfigSpec cfgInsecure optUseInsecureTLS True
+    setByCliSpec insecure optUseInsecureTLS True
+    cliOverridesConfigSpec insecure False cfgInsecure True optUseInsecureTLS
+
+  context "Last Day of Week" $ do
+    defaultSpec optLastDayOfWeek Sunday
+    setByConfigSpec cfgEndOfWeek optLastDayOfWeek Tuesday
+    setByCliSpec lastDayOfWeek optLastDayOfWeek Thursday
+    cliOverridesConfigSpec lastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
+
+  context "Target user" $ do
+    defaultSpec optUser ""
+    it "Must be settable from the command line" $ do
+      let args = emptyArgs & user .~ "Erik the Red"
+      let opts = mergeOptions args emptyConfig
+      (opts^.optUser) `shouldBe` "Erik the Red"
+
+defaultSpec optLens def =
+  it "Must honour defaults" $ do
+    let opts = mergeOptions emptyArgs emptyConfig
+    (opts^.optLens) `shouldBe` def
+
+setByConfigSpec cfgLens optLens value =
+  it "Must be settable from file configuration" $ do
+    let config = emptyConfig & cfgLens ?~ value
+    let opts = mergeOptions emptyArgs config
+    (opts^.optLens) `shouldBe` value
+
+setByCliSpec cliLens optLens value =
+  it "Must be settable from the command line" $ do
+    let args = emptyArgs & cliLens ?~ value
+    let opts = mergeOptions args emptyConfig
+    (opts^.optLens) `shouldBe` value
+
+cliOverridesConfigSpec cliLens cliValue cfgLens cfgValue optLens =
+  it "Must favour cli value over file config" $ do
+    let config = emptyConfig & cfgLens ?~ cfgValue
+    let args = emptyArgs & cliLens ?~ cliValue
+    let opts = mergeOptions args config
+    (opts^.optLens) `shouldBe` cliValue
 
 workLogFilterSpec :: Spec
 workLogFilterSpec = describe "Work log filter" $ do

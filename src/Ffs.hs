@@ -1,10 +1,22 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Ffs
     ( main
     , filterWorkLog
+    , FfsOptions (..)
+    , optUsername
+    , optPassword
+    , optLogLevel
+    , optJiraHost
+    , optUseInsecureTLS
+    , optLastDayOfWeek
+    , optUser
+    , mergeOptions
     ) where
 
 import Control.Exception
 import Control.Lens
+import Control.Lens.TH
 import Control.Concurrent.ParallelIO
 import Control.Monad
 import Data.List as L
@@ -36,6 +48,27 @@ debug = Log.debugM "main"
 type DateRange = (Day, Day)
 type Credentials = (Text, Text)
 
+data FfsOptions = FfsOptions
+  { _optUsername :: Text
+  , _optPassword :: Text
+  , _optLogLevel :: Log.Priority
+  , _optJiraHost :: URI
+  , _optUseInsecureTLS :: Bool
+  , _optLastDayOfWeek :: DayOfWeek
+  , _optUser :: Text
+  } deriving (Show, Eq)
+makeLenses ''FfsOptions
+
+defaultOptions = FfsOptions
+  { _optUsername = ""
+  , _optPassword = ""
+  , _optLogLevel = Log.INFO
+  , _optJiraHost = nullURI
+  , _optUseInsecureTLS = False
+  , _optLastDayOfWeek = Sunday
+  , _optUser = ""
+  }
+
 -- | Top level main. A thin wrapper around main' for trapping and reporting
 -- errors.
 main :: IO ()
@@ -57,11 +90,11 @@ main' = do
   initLogger (cli^.loglevel)
 
   -- Parse the config file and merge settings with the command line args
-  args <- loadOptions cli
+  options <- loadOptions cli
 
   -- get the user credentials, asking the user on the command line if unset.
-  credentials <- getCredentials args
-  let wreqCfg = wreqConfig credentials args
+  credentials <- getCredentials options
+  let wreqCfg = wreqConfig credentials options
 
   localTimeZone <- getCurrentTimeZone
   now <- getZonedTime
@@ -69,17 +102,17 @@ main' = do
 
   let today = localDay (zonedTimeToLocalTime now)
   debug $ "Today: " ++ formatDay today
-  let dateRange = weekForDay today (fromJust $ args^.lastDayOfWeek)
+  let dateRange = weekForDay today (options^.optLastDayOfWeek)
   info $ printf "Week range:  %s - %s:" (formatDay $ fst dateRange)
     (formatDay $ snd dateRange)
 
-  url <- case (args^.url) of
-    Just u -> return u
-    Nothing -> error "No JIRA URL set"
+  let url = case options^.optJiraHost of
+              nullURI -> error "No JIRA URL set"
+              u -> u
 
   --
   info "Fetching issues worked on..."
-  let query = buildQuery (args^.user) dateRange
+  let query = buildQuery (options^.optUser) dateRange
   issues <- Jira.search wreqCfg url query
   let myIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
                           Map.empty
@@ -89,7 +122,7 @@ main' = do
 
   -- get the work logs from JIRA and filter out any that aren't in our range
   -- of interest
-  log <- Map.map (filterWorkLog localTimeZone dateRange (args^.user))
+  log <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
   return ()
@@ -97,49 +130,52 @@ main' = do
 -- | Attempts to load a config file from the user's home directory. If the file
 -- exists and is parseable, the config file settings are merged with those
 -- provided by the user on the CLI.
-loadOptions :: Args.Options -> IO (Args.Options)
+loadOptions :: Args -> IO (FfsOptions)
 loadOptions cli = do
   path <- configFilePath
   debug $ printf "Loading config file from %s..." path
   mergeOptions cli <$> loadConfig path
 
+(~?) :: ASetter' s a -> Maybe a -> s -> s
+s ~? Just a  = s .~ a
+s ~? Nothing = id
+
 -- | Merges the command-line options with those loaded from file. Produces a
 -- new Args.Options with file-based settings overridden by command line args.
-mergeOptions :: Args.Options -> Config -> Args.Options
-mergeOptions cmdline file = Args.Options {
-    _login = override (file^.cfgLogin) (cmdline^.login)
-  , _password = override (file^.cfgPassword) (cmdline^.password)
-  , _loglevel = cmdline^.loglevel
-  , _url = override (file^.cfgHost) (cmdline^.url)
-  , _insecure = overrideOrDef (file^.cfgInsecure) (cmdline^.insecure) False
-  , _lastDayOfWeek = overrideOrDef (file^.cfgEndOfWeek) (cmdline^.lastDayOfWeek) Friday
-  , _user = cmdline^.user
-  }
-  where
-    override :: Maybe a -> Maybe a -> Maybe a
-    override fileValue cliValue =
-      if isJust cliValue then cliValue else fileValue
-
-    overrideOrDef :: Maybe a -> Maybe a -> a -> Maybe a
-    overrideOrDef fileValue cliValue defValue =
-      Just $ fromMaybe defValue (override fileValue cliValue)
-
+mergeOptions :: Args -> Config -> FfsOptions
+mergeOptions cmdline file =
+  defaultOptions & optUsername ~? (file^.cfgLogin)
+                 & optUsername ~? (cmdline^.login)
+                 & optPassword ~? (file^.cfgPassword)
+                 & optPassword ~? (cmdline^.password)
+                 & optJiraHost ~? (file^.cfgHost)
+                 & optJiraHost ~? (cmdline^.url)
+                 & optUseInsecureTLS ~? (file^.cfgInsecure)
+                 & optUseInsecureTLS ~? (cmdline^.insecure)
+                 & optLastDayOfWeek ~? (file^.cfgEndOfWeek)
+                 & optLastDayOfWeek ~? (cmdline^.lastDayOfWeek)
+                 & optUser .~ (cmdline^.user)
+--
+-- | Turns character echoing off on StdIn so we can enter passwords less insecurely
 withEcho :: Bool -> IO a -> IO a
 withEcho echo action = do
   oldValue <- hGetEcho stdin
   bracket_ (hSetEcho stdin echo) (hSetEcho stdin oldValue) action
 
-getCredentials :: Args.Options -> IO Credentials
+-- | Extracts the user's JIRA credentials from the settings object, and falls
+-- back to prompting the user if they're not already set
+getCredentials :: FfsOptions -> IO Credentials
 getCredentials args = do
-  login <- askIf (args^.login) "JIRA login: "
-  pwd <- withEcho False $ askIf (args^.password) "JIRA password: "
+  login <- askIf (args^.optUsername) "JIRA login: "
+  pwd <- withEcho False $ askIf (args^.optPassword) "JIRA password: "
   return (login, pwd)
   where
-    askIf :: Maybe Text -> String -> IO Text
+    askIf :: Text -> String -> IO Text
     askIf val text =
       case val of
-        Just v -> return v
-        Nothing -> T.pack <$> (putStr text >> getLine)
+        "" -> T.pack <$> (putStr text >> getLine)
+        t -> return t
+
 
 -- | Builds a jql query requesting issues worked on by a given user between
 -- two dates (inclusive)
@@ -188,14 +224,14 @@ filterWorkLog localTimeZone (start, end) username = L.filter p
          (day <= end)
 
 -- | Generates a Wreq configuration from the application options.
-wreqConfig :: Credentials -> Args.Options -> Wreq.Options
+wreqConfig :: Credentials -> FfsOptions -> Wreq.Options
 wreqConfig (username, password) args =
   let insecureTlsSettings = TLSSettingsSimple True False False
       managerSettings = mkManagerSettings insecureTlsSettings Nothing
       uid = encodeUtf8 username
       pwd = encodeUtf8 password
       opts = defaults & auth ?~ basicAuth uid pwd
-  in if fromJust (args^.insecure)
+  in if args^.optUseInsecureTLS
     then opts & manager .~ Left managerSettings
     else opts
 

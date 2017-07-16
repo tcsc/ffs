@@ -15,7 +15,7 @@ import Text.Printf
 
 import Ffs.Time (DayOfWeek(..))
 
-data Options = Options
+data Args = Args
   { _login :: Maybe Text
   , _password :: Maybe Text
   , _loglevel :: Log.Priority
@@ -25,9 +25,9 @@ data Options = Options
   , _user :: Text
   } deriving (Eq, Show)
 
-makeLenses ''Options
+makeLenses ''Args
 
-defaultArgs = Options
+emptyArgs = Args
   { _login = Nothing
   , _password = Nothing
   , _loglevel = Log.INFO
@@ -37,8 +37,7 @@ defaultArgs = Options
   , _user = ""
 }
 
-options =
-  Options
+options = Args
     <$> (optional $ option text (long "login" <>
                                  short 'l' <>
                                  metavar "USERNAME" <>
@@ -63,10 +62,10 @@ options =
                                  help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)"))
     <*> argument text (metavar "USERNAME")
 
-parse :: IO Options
+parse :: IO Args
 parse = execParser opts
   where
-    opts :: ParserInfo Options
+    opts :: ParserInfo Args
     opts = info (options <**> helper) (fullDesc <> header desc)
     desc = printf "ffs v%s - pull a timesheet out of JIRA" (showVersion version)
 
