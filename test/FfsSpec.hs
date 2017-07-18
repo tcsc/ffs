@@ -188,3 +188,7 @@ timeSheetCollationSpec = do
       let ts = collateTimeSheet workLog (\t -> "~~" <> t <> "~~")
       Map.lookup (day thu, "FFS-01") ts `shouldBe` Nothing
       Map.lookup (day thu, "~~FFS-01~~") ts `shouldBe` Just 4200
+
+    it "Must collate by groups" $ do
+      let ts = collateTimeSheet workLog (\_ -> "all-work")
+      ts ! (day thu, "all-work") `shouldBe` 4210
