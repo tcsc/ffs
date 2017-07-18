@@ -11,7 +11,7 @@ import Data.Time.Calendar
 import Ffs.Time
 
 spec :: Spec
-spec = describe "Tests" $ do
+spec = do
   intervalGenerator
   dayOfWeekParser
 
