@@ -1,7 +1,18 @@
-{-# LANGUAGE DeriveDataTypeable, TemplateHaskell #-}
-{-# OPTIONS_GHC -fno-cse #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Ffs.Args where
+module Ffs.Args
+  ( Args(..)
+  , login
+  , password
+  , loglevel
+  , url
+  , insecure
+  , lastDayOfWeek
+  , user
+  , argShowVersion
+  , emptyArgs
+  , parse
+  ) where
 
 import Data.Text
 import Data.Semigroup ((<>))
@@ -15,6 +26,7 @@ import Text.Printf
 
 import Ffs.Time (DayOfWeek(..))
 
+-- TODO: Add "arg" prefix to members to help disambiguate
 data Args = Args
   { _login :: Maybe Text
   , _password :: Maybe Text
@@ -23,6 +35,7 @@ data Args = Args
   , _insecure :: Maybe Bool
   , _lastDayOfWeek :: Maybe DayOfWeek
   , _user :: Text
+  , _argShowVersion :: Bool
   } deriving (Eq, Show)
 
 makeLenses ''Args
@@ -35,6 +48,7 @@ emptyArgs = Args
   , _insecure = Nothing
   , _lastDayOfWeek = Nothing
   , _user = ""
+  , _argShowVersion = False
 }
 
 options = Args
@@ -60,6 +74,9 @@ options = Args
                                  metavar "DAY" <>
                                  help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)"))
     <*> argument text (metavar "USERNAME")
+    <*> switch (long "version" <>
+                internal <>
+                help "display version and exit")
 
 parse :: IO Args
 parse = execParser opts

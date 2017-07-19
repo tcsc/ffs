@@ -7,6 +7,7 @@ before_test:
 - curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-i386
 - 7z x stack.zip stack.exe
 
+skip_tags: true
 clone_folder: "c:\\stack"
 
 environment:
@@ -18,7 +19,15 @@ cache:
 - "C:\\sr"
 
 test_script:
-- stack setup > nul
+- stack setup --no-terminal > nul
 # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
 # descriptor
 - echo "" | stack --no-terminal test
+
+build_script:
+- stack setup --no-terminal > nul
+- stack build --only-snapshot --no-terminal
+- stack --local-bin-path . install ffs
+
+artifacts:
+- path: ffs.exe

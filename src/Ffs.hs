@@ -22,7 +22,6 @@ import Control.Concurrent.ParallelIO
 import Control.Monad
 import Data.List as L
 import Data.Set as Set
-import Data.Set as Set
 import Data.Map.Strict as Map
 import Data.Maybe
 import Data.Text as T
@@ -31,10 +30,12 @@ import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Time.LocalTime
+import Data.Version as Ver (showVersion)
 import Network.URI
 import Network.Connection      (TLSSettings (..))
 import Network.Wreq as Wreq
 import Network.HTTP.Client.TLS (mkManagerSettings)
+import Paths_ffs (version)
 import System.Log.Logger as Log
 import qualified System.Log.Handler.Simple as Log
 import System.IO
@@ -46,6 +47,7 @@ import Ffs.ConfigFile as ConfigFile
 import Ffs.Jira as Jira
 import Ffs.Time
 
+err = Log.errorM "main"
 info = Log.infoM "main"
 debug = Log.debugM "main"
 
@@ -79,23 +81,29 @@ defaultOptions = FfsOptions
 -- | Top level main. A thin wrapper around main' for trapping and reporting
 -- errors.
 main :: IO ()
-main = catch main' (\e -> do
-  let _ = e :: SomeException
-  info $ printf "Failed: %s" (show e) )
+main = catch doMain handler
+  where
+    doMain :: IO ()
+    doMain = do
+      cli <- Args.parse
+      initLogger (cli^.loglevel)
+
+      if cli^.argShowVersion
+        then putStrLn $ Ver.showVersion version
+        else do
+          hSetBuffering stdout NoBuffering
+          main' cli
+
+    handler :: SomeException -> IO ()
+    handler e = err $ printf "Failed: %s" (show e)
 
 -- | The part that does all the heavy lifting
 --
 -- TODO: Decouple the program options from the record returned by the command
 --       line parser. It's not a good fit for doing double duty when merged
 --       into the file-based config.
-main' :: IO ()
-main' = do
-  hSetBuffering stdout NoBuffering
-
-  -- Parse command line args and set up the logger
-  cli <- Args.parse
-  initLogger (cli^.loglevel)
-
+main' :: Args -> IO ()
+main' cli = do
   -- Parse the config file and merge settings with the command line args
   options <- loadOptions cli
 
@@ -136,6 +144,7 @@ main' = do
 
   return ()
 
+-- | Renders a timesheet as a table
 renderTimeSheet :: DateRange -> TimeSheet -> String
 renderTimeSheet (start, end) timeSheet =
   render $ hsep 2 top (bucketAxis : cols)
