@@ -68,9 +68,9 @@ intervalGenerator = describe "Interval generation" $ do
         in (start <= day) && (day <= end)
 
   prop "Range must always be 7 days" $
-      \(day, endOfWeek) ->
-          let (start, end) = weekForDay day endOfWeek
-          in (end `diffDays` start) == 6
+    \(day, endOfWeek) ->
+        let (start, end) = weekForDay day endOfWeek
+        in (end `diffDays` start) == 6
 
 dayOfWeekParser :: Spec
 dayOfWeekParser = describe "The day-of-week parser" $ do

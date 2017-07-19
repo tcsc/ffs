@@ -24,6 +24,7 @@ library
   default-extensions:  OverloadedStrings
   build-depends:       base >= 4.7 && < 5
                      , aeson
+                     , boxes
                      , bytestring
                      , containers
                      , ConfigFile

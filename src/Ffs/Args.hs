@@ -41,7 +41,6 @@ options = Args
     <$> (optional $ option text (long "login" <>
                                  short 'l' <>
                                  metavar "USERNAME" <>
-                                 value "" <>
                                  help "Your JIRA login"))
     <*> (optional $ option text (long "password" <>
                                  short 'p' <>
