@@ -12,12 +12,13 @@ Either:
 ## Running
 
 ```bash
-$ ffs --login $jira_username --jira https://jira.example.com
+$ ffs --jira https://jira.example.com $jira_username
 ```
 
-You will be prompted for your JIRA password. Note that you _can_ pass it on the 
-command line, but it's a better idea not to as you probably don't want it showing
-up in your command history. 
+You will be prompted for your JIRA username & password. Note that you _can_ 
+supply both on the command line if you wish, but I recommend against it (for
+your password at any rate - you don't want it cropping up in your command 
+history if you can help it). 
 
 Run `ffs --help` for more info.
 
