@@ -27,4 +27,4 @@ deploy:
   file: ffs
   skip_cleanup: true
   on:
-    repo: tcsc/ffs
+    tags: true
