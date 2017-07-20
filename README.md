@@ -4,7 +4,7 @@ Generate a timesheet from your JIRA work logs.
 
 ## Installation
 Either:
- - Grab a pre-built binary package from the Releases page, or
+ - Grab a pre-built binary package from the Releases page (NB: on linux you may need to install libgmp), or
  - Clone the repo and run `stack install` (assuming you already have Haskell 
    infrastructure in-place). Have a look at `.travis.yml` or `appveyor.yml` 
    for build instructions
