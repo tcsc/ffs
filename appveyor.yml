@@ -29,3 +29,14 @@ build_script:
 
 artifacts:
 - path: ffs.exe
+
+deploy:
+  - provider: GitHub
+    artifact: ffs.exe
+    auth_token: ZiJ5GrxLQD85GZL+z4kUNSB6/GL6A4QqqcPXAUdG2JP3yimsG4QnPeztIZlmtZHxs6tAQfHM56TUMDeaO6dlWPpbCG5qOoQBzm3HLYBKfbJHVC08dMPzb/WMx27d87zlAP7zenhWpBqCn3q5VTSrN0lWsNfJv/jtjKuCNDuyzgP/vCZrpGgVnzALYQaiEuMjnD0e96vR0q1uxNwj38m2jKfnXIh9E6y+fiE5m7qhOthybLjLY9poaaq4/mUmv2Letpaz3mXA/vOjGkR1g/TXBatnDR2HgExh0+1yTusl5w821q0M4oIsbIjxLxAxRd7mB8yGM84v0lKpEFHUrKdWd5R6anvoCFAcLTdsmhBIB/EoGOkX/Re05s4YO16u5lyxcVklTMv/ujJkwTgIXf6HzudZ/xbTGVbeJ88Viu8BPuYwi/Why75Sxi8Jm141ye/bU9VNB0JVSXydygMF5aNHflAOTtNju3BNtk/+/IjM+R+/xo2Vm6IeC7IhO71OH2bSW+HokWfhdiCJThgU9tIpZGVtYtV4BJiGGAtPi5cFvvzlp4OWp01tL4hRENm3jxTWg6vPG540izJfWSOkgPWorc4h84OywOKaIJK9JErgpHgI36eOLJwx3+BX8EC7jLNQ0cuYzpCJIf2yBctC3qXdkLUEAZF54tD+QJEgpNoR0Bg=
+    draft: true 
+    prerelease: false
+    on:
+      branch: master
+      appveyor_repo_tag: true
+
