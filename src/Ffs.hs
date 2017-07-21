@@ -147,31 +147,71 @@ main' cli = do
 -- | Renders a timesheet as a table
 renderTimeSheet :: DateRange -> TimeSheet -> String
 renderTimeSheet (start, end) timeSheet =
-  render $ hsep 2 top (bucketAxis : cols)
+  render $ hsep 2 top (bucketAxis : cols ++ [bucketTotals])
   where
-    bucketAxis = Box.vcat left (Box.text "" : (L.map (Box.text . T.unpack) buckets))
+    bucketAxis =
+      let header = Box.text ""
+          total = Box.text "Total"
+          items = L.map (Box.text . T.unpack) buckets
+      in Box.vcat left (header : items ++ [total])
 
+    -- Extract the list of buckets from the time sheet. Note that the item order
+    -- returned here basically defines the table order
     buckets :: [Text]
     buckets = Set.elems $ Map.foldlWithKey extractBucket Set.empty timeSheet
 
+    bucketTotals :: Box
+    bucketTotals =
+      let header = Box.text "Total"
+          bucketTotals = L.map bucketTotal buckets
+          items = L.map timeBox bucketTotals
+          grandTotal = timeBox (L.foldl' (+) 0 bucketTotals)
+      in Box.vcat right $ header : items ++ [grandTotal]
+
+    timeBox :: Int -> Box
+    timeBox = Box.text . fmtTime
+
+    -- Extract the bucket name from the time sheet key and inject it into the
+    -- set that is accumulating all of the unique bucket names
     extractBucket :: Set Text -> (Day, Text) -> Int -> Set Text
     extractBucket keys (_, k) _ = Set.insert k keys
 
+    -- Total value of all time worked for a given bucket
+    bucketTotal :: Text -> Int
+    bucketTotal bucket =
+      let addTimeIfInBucket = (\(_, b) v acc -> acc + if b == bucket then v else 0)
+      in Map.foldrWithKey addTimeIfInBucket 0 timeSheet
+
+    -- Generate the columns for the table
     cols :: [Box]
     cols = L.map renderDay days
 
+    -- Render a single day's worth of time as a column, including a total
+    -- in the final row.
     renderDay :: Day -> Box
     renderDay d =
       let header = Box.text $ formatTime defaultTimeLocale "%a %F" d
-          items =  L.map (fmtBucketDay d) buckets
-      in Box.vcat right $ header : items
+          items = L.map (fmtBucketDay d) buckets
+          total = L.foldl' (\t b -> let i = fromMaybe 0 $ timeForBucket d b
+                                    in t + i)
+                           0
+                           buckets
+      in Box.vcat right $ (header : items) ++ [Box.text $ fmtTime total]
 
+    -- Get the time for a bucket, which may be "Nothing"
+    timeForBucket :: Day -> Text -> Maybe Int
+    timeForBucket day bucket = Map.lookup (day, bucket) timeSheet
+
+    -- Format the time spent on a given bucket on a given day.
     fmtBucketDay :: Day -> Text -> Box
     fmtBucketDay day bucket =
-      let value = case Map.lookup (day, bucket) timeSheet of
-                    Just v -> printf "%f" (((fromIntegral v) / 3600.0) :: Float)
-                    Nothing -> ""
+      let value = fromMaybe "" (fmtTime <$> timeForBucket day bucket)
       in Box.text value
+
+    fmtTime :: Int -> String
+    fmtTime seconds =
+      let hours = ((fromIntegral seconds) / 3600.0) :: Float
+      in printf "%f" hours
 
     days = L.unfoldr genDay start
 
