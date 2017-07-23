@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE BangPatterns, TemplateHaskell #-}
 
 module Ffs
     ( main
@@ -34,10 +34,12 @@ import Data.Version as Ver (showVersion)
 import Network.URI
 import Network.Connection      (TLSSettings (..))
 import Network.Wreq as Wreq
+import Network.HTTP.Client (HttpException(..))
 import Network.HTTP.Client.TLS (mkManagerSettings)
 import Paths_ffs (version)
 import System.Log.Logger as Log
 import qualified System.Log.Handler.Simple as Log
+import System.Exit (exitFailure)
 import System.IO
 import Text.PrettyPrint.Boxes as Box
 import Text.Printf
@@ -81,7 +83,9 @@ defaultOptions = FfsOptions
 -- | Top level main. A thin wrapper around main' for trapping and reporting
 -- errors.
 main :: IO ()
-main = catch doMain handler
+main = doMain `catches` [Handler onHttpException,
+                         Handler onError,
+                         Handler onSomeException]
   where
     doMain :: IO ()
     doMain = do
@@ -94,8 +98,23 @@ main = catch doMain handler
           hSetBuffering stdout NoBuffering
           main' cli
 
-    handler :: SomeException -> IO ()
-    handler e = err $ printf "Failed: %s" (show e)
+    exit :: String -> IO ()
+    exit msg = do
+      err $ printf "Failed: %s" msg
+      exitFailure
+
+    onHttpException :: HttpException -> IO ()
+    onHttpException e = do
+      let msg = case e of
+                  HttpExceptionRequest _ content -> (show content)
+                  _ -> show e
+      exit msg
+
+    onError :: ErrorCall -> IO ()
+    onError (ErrorCallWithLocation msg _) = exit msg
+
+    onSomeException :: SomeException -> IO ()
+    onSomeException e = exit $ show e
 
 -- | The part that does all the heavy lifting
 --
@@ -121,10 +140,10 @@ main' cli = do
   debug $ printf "Week range:  %s - %s:" (formatDay $ fst dateRange)
     (formatDay $ snd dateRange)
 
-  let url = case options^.optJiraHost of
-              u | u == nullURI -> error "No JIRA URL set"
-              u -> u
-  --
+  -- force evaluation of the url now, otherwise we it won't know its bad until
+  -- we try to use it.
+  url <- getUrl cli options
+
   info "Fetching issues worked on..."
   let query = buildQuery (options^.optUser) dateRange
   issues <- Jira.search wreqCfg url query
@@ -220,6 +239,23 @@ renderTimeSheet (start, end) timeSheet =
       if day <= end
         then Just (day, addDays 1 day)
         else Nothing
+
+-- | Extracts the JIRA url from the application options and validates it.
+-- Explicitly forces the evaluation of the URL to make sure the validation
+-- happens at the right time (i.e. during the evaluation of getUrl, rather
+-- than on first use).
+getUrl :: Args -> FfsOptions -> IO URI
+getUrl cli options =
+  let u = case options^.optJiraHost of
+            u | u == nullURI -> error "No JIRA URL set"
+            u | (uriScheme u) /= "https" ->
+              if (cli^.argForce)
+                then u
+                else error "JIRA url is not HTTPS. Override with --force,\
+                           \ but be warned that this will send your\
+                           \ credentials over the network in plain text."
+            u -> u
+  in return $! u
 
 
 -- | A function that can take an issue key and map it to an aggregation group

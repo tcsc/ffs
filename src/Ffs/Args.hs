@@ -10,6 +10,7 @@ module Ffs.Args
   , lastDayOfWeek
   , user
   , argShowVersion
+  , argForce
   , emptyArgs
   , parse
   ) where
@@ -36,6 +37,7 @@ data Args = Args
   , _lastDayOfWeek :: Maybe DayOfWeek
   , _user :: Text
   , _argShowVersion :: Bool
+  , _argForce :: Bool
   } deriving (Eq, Show)
 
 makeLenses ''Args
@@ -49,6 +51,7 @@ emptyArgs = Args
   , _lastDayOfWeek = Nothing
   , _user = ""
   , _argShowVersion = False
+  , _argForce = False
 }
 
 options = Args
@@ -77,6 +80,9 @@ options = Args
     <*> switch (long "version" <>
                 internal <>
                 help "display version and exit")
+    <*> switch (long "force" <>
+                short 'f' <>
+                help "Force insecure and/or dangerous behaviour.")
 
 parse :: IO Args
 parse = execParser opts

@@ -55,11 +55,11 @@ figured I'd stop just saying it, and automate the process away.
 
 # TODO
  - [ ] Reporting over arbitrary date ranges, rather than "the current week"
- - [ ] Refuse to use unencypted HTTP, as this will send your username and password 
-       in essentially clear text. Maybe with a `--force` option for the terminally 
-       masochistic.
+ - [X] ~~Refuse to use unencypted HTTP, as this will send your username and 
+       password in essentially clear text. Maybe with a `--force` option for 
+       the terminally masochistic.~~
  - [ ] CSV output for injection into other tools
  - [ ] Grouping options, e.g. by custom field, by epic, by label, etc.
  - [ ] Optionally roll up subtasks into parent
  - [ ] Debian packaging for dependency management
- - [X] Display totals on table - per day, per bucket, grand total
+ - [X] ~~Display totals on table - per day, per bucket, grand total~~
