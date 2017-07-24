@@ -15,7 +15,7 @@ import Network.URI
 import Test.Hspec
 
 import Ffs
-import Ffs.Args as Args
+import Ffs.CommandLine as Args
 import Ffs.ConfigFile as Cfg
 import Ffs.Jira as Jira
 import Ffs.Time as Time
@@ -51,34 +51,34 @@ configMergeSpec =
   do context "Username" $
        do defaultSpec optUsername ""
           setByConfigSpec cfgLogin optUsername "potato"
-          setByCliSpec login optUsername "duck"
-          cliOverridesConfigSpec login "duck" cfgLogin "potato" optUsername
+          setByCliSpec argLogin optUsername "duck"
+          cliOverridesConfigSpec argLogin "duck" cfgLogin "potato" optUsername
      context "Password" $
        do defaultSpec optPassword ""
           setByConfigSpec cfgPassword optPassword "potato"
-          setByCliSpec password optPassword "duck"
-          cliOverridesConfigSpec password "duck" cfgPassword "potato" optPassword
+          setByCliSpec argPassword optPassword "duck"
+          cliOverridesConfigSpec argPassword "duck" cfgPassword "potato" optPassword
      context "Jira Host" $
        do let cfgUrl = fromJust $ parseURI "http://example.com/config"
           let cliUrl = fromJust $ parseURI "http://cli.com/cli"
           defaultSpec optJiraHost nullURI
           setByConfigSpec cfgHost optJiraHost cfgUrl
-          setByCliSpec url optJiraHost cliUrl
-          cliOverridesConfigSpec url cliUrl cfgHost cfgUrl optJiraHost
+          setByCliSpec argUrl optJiraHost cliUrl
+          cliOverridesConfigSpec argUrl cliUrl cfgHost cfgUrl optJiraHost
      context "Use insecure TLS" $
        do defaultSpec optUseInsecureTLS False
           setByConfigSpec cfgInsecure optUseInsecureTLS True
-          setByCliSpec insecure optUseInsecureTLS True
-          cliOverridesConfigSpec insecure False cfgInsecure True optUseInsecureTLS
+          setByCliSpec argInsecure optUseInsecureTLS True
+          cliOverridesConfigSpec argInsecure False cfgInsecure True optUseInsecureTLS
      context "Last Day of Week" $
        do defaultSpec optLastDayOfWeek Sunday
           setByConfigSpec cfgEndOfWeek optLastDayOfWeek Tuesday
-          setByCliSpec lastDayOfWeek optLastDayOfWeek Thursday
-          cliOverridesConfigSpec lastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
+          setByCliSpec argLastDayOfWeek optLastDayOfWeek Thursday
+          cliOverridesConfigSpec argLastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
      context "Target user" $
        do defaultSpec optUser ""
           it "Must be settable from the command line" $
-            do let args = emptyArgs & user .~ "Erik the Red"
+            do let args = emptyArgs & argUser .~ "Erik the Red"
                let opts = mergeOptions args emptyConfig
                (opts ^. optUser) `shouldBe` "Erik the Red"
 

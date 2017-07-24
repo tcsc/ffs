@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Ffs.ConfigFile
-  ( Config (..)
+  ( Config(..)
   , cfgLogin
   , cfgPassword
   , cfgHost
@@ -31,15 +31,14 @@ import Ffs.Time (DayOfWeek(..))
 info = Log.infoM "config"
 debug = Log.debugM "config"
 
-
 data Config = Config
-  { _cfgLogin  :: Maybe Text
+  { _cfgLogin :: Maybe Text
   , _cfgPassword :: Maybe Text
   , _cfgHost :: Maybe URI
   , _cfgEndOfWeek :: Maybe DayOfWeek
   , _cfgInsecure :: Maybe Bool
-  }
-  deriving (Show, Eq)
+  } deriving (Show, Eq)
+
 makeLenses ''Config
 
 configFilePath :: IO FilePath
@@ -55,28 +54,32 @@ parseConfig text = do
   eow <- maybeGet cfg "report" "week-ends-on"
   host <- asUrl <$> maybeGet cfg "JIRA" "host"
   insecure <- maybeGet cfg "JIRA" "insecure"
-
-  return $ Config {
-      _cfgLogin = login
+  return $
+    Config
+    { _cfgLogin = login
     , _cfgPassword = pwd
     , _cfgHost = host
     , _cfgEndOfWeek = eow
     , _cfgInsecure = insecure
     }
   where
-    maybeGet :: Get_C a => ConfigParser -> String -> String -> Either CPError (Maybe a)
+    maybeGet :: Get_C a => ConfigParser ->
+                           String ->
+                           String -> Either CPError (Maybe a)
     maybeGet cfg sec name = do
       if has_option cfg sec name
         then Just <$> get cfg sec name
         else return Nothing
 
     asUrl :: Maybe String -> Maybe URI
-    asUrl text = case text of
-      Nothing -> Nothing
-      Just s -> parseURI s
+    asUrl text =
+      case text of
+        Nothing -> Nothing
+        Just s -> parseURI s
 
-emptyConfig = Config {
-    _cfgLogin = Nothing
+emptyConfig =
+  Config
+  { _cfgLogin = Nothing
   , _cfgPassword = Nothing
   , _cfgHost = Nothing
   , _cfgEndOfWeek = Nothing
@@ -91,6 +94,5 @@ loadConfig path = catch loadConfig' handleErr
       text <- readFile path
       let result = parseConfig text
       return $ either (\_ -> emptyConfig) id result
-
     handleErr :: IOException -> IO Config
     handleErr _ = return emptyConfig

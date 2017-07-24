@@ -17,7 +17,6 @@ module Ffs
 
 import Control.Exception
 import Control.Lens
-import Control.Lens.TH
 import Control.Concurrent.ParallelIO
 import Control.Monad
 import Data.List as L
@@ -44,9 +43,10 @@ import System.IO
 import Text.PrettyPrint.Boxes as Box
 import Text.Printf
 
-import Ffs.Args as Args
+import Ffs.CommandLine as Args
 import Ffs.ConfigFile as ConfigFile
 import Ffs.Jira as Jira
+import Ffs.Options as Options
 import Ffs.Time
 
 err = Log.errorM "main"
@@ -59,27 +59,6 @@ type IssueMap = Map Text SearchResult
 type WorkLogMap = Map Text [WorkLogItem]
 type TimeSheet = Map (Day, Text) Int
 
-data FfsOptions = FfsOptions
-  { _optUsername :: Text
-  , _optPassword :: Text
-  , _optLogLevel :: Log.Priority
-  , _optJiraHost :: URI
-  , _optUseInsecureTLS :: Bool
-  , _optLastDayOfWeek :: DayOfWeek
-  , _optUser :: Text
-  } deriving (Show, Eq)
-makeLenses ''FfsOptions
-
-defaultOptions = FfsOptions
-  { _optUsername = ""
-  , _optPassword = ""
-  , _optLogLevel = Log.INFO
-  , _optJiraHost = nullURI
-  , _optUseInsecureTLS = False
-  , _optLastDayOfWeek = Sunday
-  , _optUser = ""
-  }
-
 -- | Top level main. A thin wrapper around main' for trapping and reporting
 -- errors.
 main :: IO ()
@@ -90,7 +69,7 @@ main = doMain `catches` [Handler onHttpException,
     doMain :: IO ()
     doMain = do
       cli <- Args.parse
-      initLogger (cli^.loglevel)
+      initLogger (cli^.argLoglevel)
 
       if cli^.argShowVersion
         then putStrLn $ Ver.showVersion version
@@ -316,16 +295,16 @@ s ~? Nothing = id
 mergeOptions :: Args -> Config -> FfsOptions
 mergeOptions cmdline file =
   defaultOptions & optUsername ~? (file^.cfgLogin)
-                 & optUsername ~? (cmdline^.login)
+                 & optUsername ~? (cmdline^.argLogin)
                  & optPassword ~? (file^.cfgPassword)
-                 & optPassword ~? (cmdline^.password)
+                 & optPassword ~? (cmdline^.argPassword)
                  & optJiraHost ~? (file^.cfgHost)
-                 & optJiraHost ~? (cmdline^.url)
+                 & optJiraHost ~? (cmdline^.argUrl)
                  & optUseInsecureTLS ~? (file^.cfgInsecure)
-                 & optUseInsecureTLS ~? (cmdline^.insecure)
+                 & optUseInsecureTLS ~? (cmdline^.argInsecure)
                  & optLastDayOfWeek ~? (file^.cfgEndOfWeek)
-                 & optLastDayOfWeek ~? (cmdline^.lastDayOfWeek)
-                 & optUser .~ (cmdline^.user)
+                 & optLastDayOfWeek ~? (cmdline^.argLastDayOfWeek)
+                 & optUser .~ (cmdline^.argUser)
 
 -- | Turns character echoing off on StdIn so we can enter passwords less insecurely
 withEcho :: Bool -> IO a -> IO a

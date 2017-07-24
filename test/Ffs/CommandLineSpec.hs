@@ -1,10 +1,10 @@
-module Ffs.ArgsSpec
+module Ffs.CommandLineSpec
  -- (spec)
  where
 
 import Data.Either
 import Test.Hspec
-import Ffs.Args
+import Ffs.CommandLine
 import Ffs.Time (DayOfWeek(..))
 
 spec :: Spec

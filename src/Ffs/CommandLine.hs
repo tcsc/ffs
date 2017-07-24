@@ -1,14 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Ffs.Args
+module Ffs.CommandLine
   ( Args(..)
-  , login
-  , password
-  , loglevel
-  , url
-  , insecure
-  , lastDayOfWeek
-  , user
+  , argLogin
+  , argPassword
+  , argLoglevel
+  , argUrl
+  , argInsecure
+  , argLastDayOfWeek
+  , argUser
   , argShowVersion
   , argForce
   , emptyArgs
@@ -27,33 +27,34 @@ import Text.Printf
 
 import Ffs.Time (DayOfWeek(..))
 
--- TODO: Add "arg" prefix to members to help disambiguate
+-- | Command line arguments ar parsed by optparse
 data Args = Args
-  { _login :: Maybe Text
-  , _password :: Maybe Text
-  , _loglevel :: Log.Priority
-  , _url :: Maybe URI
-  , _insecure :: Maybe Bool
-  , _lastDayOfWeek :: Maybe DayOfWeek
-  , _user :: Text
+  { _argLogin :: Maybe Text
+  , _argPassword :: Maybe Text
+  , _argLoglevel :: Log.Priority
+  , _argUrl :: Maybe URI
+  , _argInsecure :: Maybe Bool
+  , _argLastDayOfWeek :: Maybe DayOfWeek
+  , _argUser :: Text
   , _argShowVersion :: Bool
   , _argForce :: Bool
   } deriving (Eq, Show)
-
 makeLenses ''Args
 
+-- | A default, empty set of args
 emptyArgs = Args
-  { _login = Nothing
-  , _password = Nothing
-  , _loglevel = Log.INFO
-  , _url = Nothing
-  , _insecure = Nothing
-  , _lastDayOfWeek = Nothing
-  , _user = ""
+  { _argLogin = Nothing
+  , _argPassword = Nothing
+  , _argLoglevel = Log.INFO
+  , _argUrl = Nothing
+  , _argInsecure = Nothing
+  , _argLastDayOfWeek = Nothing
+  , _argUser = ""
   , _argShowVersion = False
   , _argForce = False
 }
 
+-- |
 options = Args
     <$> (optional $ option text (long "login" <>
                                  short 'l' <>

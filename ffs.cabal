@@ -16,9 +16,10 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Ffs
-                     , Ffs.Args
+                     , Ffs.CommandLine
                      , Ffs.ConfigFile
                      , Ffs.Jira
+                     , Ffs.Options
                      , Ffs.Time
                      , Paths_ffs
   default-extensions:  OverloadedStrings
@@ -61,9 +62,10 @@ test-suite ffs-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       FfsSpec
-                     , Ffs.ArgsSpec
+                     , Ffs.CommandLineSpec
                      , Ffs.ConfigFileSpec
                      , Ffs.JiraSpec
+                     , Ffs.OptionsSpec
                      , Ffs.TimeSpec
   default-extensions:  OverloadedStrings
   build-depends:       base
