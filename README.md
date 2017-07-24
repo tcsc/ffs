@@ -30,11 +30,11 @@ example file would look like:
 
 ```ini
 [login]
-username = "your-jira-username"
+username = your-jira-username
 
 # Uncomment to store your JIRA password in your config file. Not recommended, 
 # as it's an enormous security hole
-# password = "not-recommnded"
+# password = not-recommnded
 
 [JIRA]
 host = https://jira.example.com
