@@ -11,6 +11,7 @@ module Ffs.CommandLine
   , argUser
   , argShowVersion
   , argForce
+  , argGroupBy
   , emptyArgs
   , parse
   ) where
@@ -26,6 +27,7 @@ import System.Log.Logger as Log
 import Text.Printf
 
 import Ffs.Time (DayOfWeek(..))
+import Ffs.Options as Options
 
 -- | Command line arguments ar parsed by optparse
 data Args = Args
@@ -38,6 +40,7 @@ data Args = Args
   , _argUser :: Text
   , _argShowVersion :: Bool
   , _argForce :: Bool
+  , _argGroupBy :: Maybe Grouping
   } deriving (Eq, Show)
 makeLenses ''Args
 
@@ -52,6 +55,7 @@ emptyArgs = Args
   , _argUser = ""
   , _argShowVersion = False
   , _argForce = False
+  , _argGroupBy = Nothing
 }
 
 -- |
@@ -84,6 +88,11 @@ options = Args
     <*> switch (long "force" <>
                 short 'f' <>
                 help "Force insecure and/or dangerous behaviour.")
+    <*> (optional $ option auto (long "group-by" <>
+                                 short 'g' <>
+                                 metavar "GROUP" <>
+                                 help "Group hours by different criteria. Possible values are \
+                                      \issue or custom-field:<field name>"))
 
 parse :: IO Args
 parse = execParser opts

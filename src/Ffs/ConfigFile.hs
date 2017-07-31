@@ -7,6 +7,7 @@ module Ffs.ConfigFile
   , cfgHost
   , cfgEndOfWeek
   , cfgInsecure
+  , cfgGroupBy
   , configFilePath
   , parseConfig
   , loadConfig
@@ -27,6 +28,7 @@ import System.FilePath
 import System.Log.Logger as Log
 
 import Ffs.Time (DayOfWeek(..))
+import Ffs.Options (Grouping(..))
 
 info = Log.infoM "config"
 debug = Log.debugM "config"
@@ -37,6 +39,7 @@ data Config = Config
   , _cfgHost :: Maybe URI
   , _cfgEndOfWeek :: Maybe DayOfWeek
   , _cfgInsecure :: Maybe Bool
+  , _cfgGroupBy :: Maybe Grouping
   } deriving (Show, Eq)
 
 makeLenses ''Config
@@ -52,6 +55,7 @@ parseConfig text = do
   login <- fmap T.pack <$> maybeGet cfg "login" "username"
   pwd <- fmap T.pack <$> maybeGet cfg "login" "password"
   eow <- maybeGet cfg "report" "week-ends-on"
+  group <- maybeGet cfg "report" "group-by"
   host <- asUrl <$> maybeGet cfg "JIRA" "host"
   insecure <- maybeGet cfg "JIRA" "insecure"
   return $
@@ -61,6 +65,7 @@ parseConfig text = do
     , _cfgHost = host
     , _cfgEndOfWeek = eow
     , _cfgInsecure = insecure
+    , _cfgGroupBy = group
     }
   where
     maybeGet :: Get_C a => ConfigParser ->
@@ -84,6 +89,7 @@ emptyConfig =
   , _cfgHost = Nothing
   , _cfgEndOfWeek = Nothing
   , _cfgInsecure = Nothing
+  , _cfgGroupBy = Nothing
   }
 
 loadConfig :: FilePath -> IO Config

@@ -3,6 +3,7 @@ module Ffs.JiraSpec (spec) where
 
 import Data.Aeson as Aeson
 import Data.ByteString
+import Data.Map.Strict as Map
 import Data.Maybe
 import Data.String.QQ
 import Data.Time.LocalTime
@@ -17,6 +18,7 @@ spec = describe "JIRA REST API" $ do
 
 jsonParsers :: Spec
 jsonParsers = describe "JSON Parsers" $ do
+  fieldDescriptionParser
   searchResultParser
   workLogParser
 
@@ -26,7 +28,8 @@ date s = fromJust $ parseTimeM True defaultTimeLocale "%FT%T%Q%z" s
 searchResultParser :: Spec
 searchResultParser = describe "Search result parser" $ do
   it "Must parse the example search result" $ do
-    -- Example search result response sourced from the JIRA REST api docs
+    -- Example search result response sourced from the JIRA REST api docs (with
+    -- added fields)
     let text = [s|{
        "expand": "names,schema",
        "startAt": 0,
@@ -37,7 +40,10 @@ searchResultParser = describe "Search result parser" $ do
                "expand": "",
                "id": "10001",
                "self": "http://www.example.com/jira/rest/api/2/issue/10001",
-               "key": "HSP-1"
+               "key": "HSP-1",
+               "fields": {
+                 "description": "Some text goes here"
+               }
            }
        ]
     }|]
@@ -46,8 +52,13 @@ searchResultParser = describe "Search result parser" $ do
         _issuesStartAt = 0
       , _issuesMaxResults = 50
       , _issuesTotal = 1
-      , _issues = [
-          Jira.SearchResult "HSP-1" "http://www.example.com/jira/rest/api/2/issue/10001"
+      , _issues =
+        [ Jira.SearchResult
+            "HSP-1"
+            "http://www.example.com/jira/rest/api/2/issue/10001"
+            (Map.fromList
+              [ ("description", Aeson.String "Some text goes here")
+              ])
         ]
       }
 
@@ -126,3 +137,68 @@ workLogParser = describe "Work log parser" $ do
       }
 
     Aeson.eitherDecode(text) `shouldBe` (Right expected)
+
+fieldDescriptionParser :: Spec
+fieldDescriptionParser =
+  describe "The field list parser" $ do
+    it "Must parse the example JSON" $ do
+      let text = [s|[
+          {
+              "id": "description",
+              "name": "Description",
+              "custom": false,
+              "orderable": true,
+              "navigable": true,
+              "searchable": true,
+              "clauseNames": [
+                  "description"
+              ],
+              "schema": {
+                  "type": "string",
+                  "system": "description"
+              }
+          },
+          {
+              "id": "summary",
+              "key": "summary",
+              "name": "Summary",
+              "custom": false,
+              "orderable": true,
+              "navigable": true,
+              "searchable": true,
+              "clauseNames": [
+                  "summary"
+              ],
+              "schema": {
+                  "type": "string",
+                  "system": "summary"
+              }
+          }
+      ]|]
+
+      let expected = [ FieldDescription "description" "Description" ["description"] StringField
+                     , FieldDescription "summary" "Summary" ["summary"] StringField
+                     ]
+
+      Aeson.eitherDecode(text) `shouldBe` (Right expected)
+
+    it "Must handle schemaless fields" $ do
+      let text = [s|
+        { "clauseNames": ["id", "issue", "issuekey", "key"]
+        , "custom": false
+        , "id": "issuekey"
+        , "name": "Key"
+        , "navigable": true
+        , "orderable": false
+        , "searchable": false
+        }|]
+
+      let expected = FieldDescription
+                       "issuekey"
+                       "Key"
+                       ["id", "issue", "issuekey", "key"]
+                       UnknownFieldType
+
+      Aeson.eitherDecode(text) `shouldBe` Right expected
+
+

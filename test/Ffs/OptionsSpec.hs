@@ -16,8 +16,14 @@ groupingParser = describe "Grouping option parser" $ do
   it "Must parse the issue option" $ do
     readMaybe "issue" `shouldBe` (Just Issue)
 
+  it "Must not parse the issue option with trailing characters" $ do
+    readMaybe "issuesareforsuckers" `shouldBe` (Nothing :: Maybe Grouping)
+
   it "Must parse the custom field option" $ do
-    readMaybe "custom-field:narf" `shouldBe` (Just $ CustomField "narf")
+    readMaybe "field:narf" `shouldBe` (Just $ Field "narf")
 
   it "Must handle custom fields with spaces" $ do
-    readMaybe "custom-field:narf zort troz" `shouldBe` (Just $ CustomField "narf zort troz")
+    readMaybe "field:narf zort troz" `shouldBe` (Just $ Field "narf zort troz")
+
+  it "Must trim whitespace from custom fields" $ do
+    readMaybe "field: bananas\t" `shouldBe` (Just $ Field "bananas")

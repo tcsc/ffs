@@ -15,17 +15,20 @@ import Ffs.Time
 
 data Grouping
   = Issue
-  | CustomField Text
+  | Field Text
   deriving (Eq, Show)
 
 instance Read Grouping where
   readPrec = lift $ choice [parseIssue, parseGroup]
     where
-      parseIssue = ReadP.string "issue" >> return Issue
+      parseIssue = do
+        ReadP.string "issue"
+        ReadP.eof
+        return Issue
       parseGroup = do
-        ReadP.string "custom-field:"
+        ReadP.string "field:"
         name <- ReadP.munch (\_ -> True)
-        return $! CustomField (pack name)
+        return $! Field $ (strip . pack) name
 
 
 data FfsOptions = FfsOptions
@@ -35,6 +38,7 @@ data FfsOptions = FfsOptions
   , _optJiraHost :: URI
   , _optUseInsecureTLS :: Bool
   , _optLastDayOfWeek :: DayOfWeek
+  , _optGroupBy :: Grouping
   , _optUser :: Text
   } deriving (Show, Eq)
 
@@ -48,5 +52,6 @@ defaultOptions =
   , _optJiraHost = nullURI
   , _optUseInsecureTLS = False
   , _optLastDayOfWeek = Sunday
+  , _optGroupBy = Issue
   , _optUser = ""
   }

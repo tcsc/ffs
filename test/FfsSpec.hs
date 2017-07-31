@@ -18,6 +18,7 @@ import Ffs
 import Ffs.CommandLine as Args
 import Ffs.ConfigFile as Cfg
 import Ffs.Jira as Jira
+import Ffs.Options as Options
 import Ffs.Time as Time
 
 spec :: Spec
@@ -25,6 +26,7 @@ spec = do
   workLogFilterSpec
   timeSheetCollationSpec
   configMergeSpec
+  fieldFinderSpec
 
 defaultUser =
   Jira.User
@@ -75,6 +77,13 @@ configMergeSpec =
           setByConfigSpec cfgEndOfWeek optLastDayOfWeek Tuesday
           setByCliSpec argLastDayOfWeek optLastDayOfWeek Thursday
           cliOverridesConfigSpec argLastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
+     context "Group by" $
+       do defaultSpec optGroupBy Issue
+          setByConfigSpec cfgGroupBy optGroupBy (Field "bananas")
+          setByCliSpec argGroupBy optGroupBy (Field "bananas")
+          cliOverridesConfigSpec argGroupBy (Field "bananas")
+                                 cfgGroupBy (Field "narf")
+                                 optGroupBy
      context "Target user" $
        do defaultSpec optUser ""
           it "Must be settable from the command line" $
@@ -192,3 +201,35 @@ timeSheetCollationSpec = do
     it "Must collate by groups" $ do
       let ts = collateTimeSheet workLog (\_ -> "all-work")
       ts ! (day thu, "all-work") `shouldBe` 4210
+
+
+fieldFinderSpec :: Spec
+fieldFinderSpec =
+  describe "Field Finder" $ do
+    it "Should find items by clausename" $ do
+      let f = FieldDescription "fieldId" "fieldName" ["clauseName"] StringField
+      let fields = [ f & fldClauseNames .~ ["narf", "zort"]
+                   , f
+                   , f & fldName .~ "nope"
+                   ]
+      findGroupField "clauseName" fields `shouldBe` Just f
+
+    it "Should return first matching field" $ do
+      let f = FieldDescription "fieldId" "fieldName" ["CLAuseName"] StringField
+      let fields = [ f
+                   , f & fldName .~ "nope"
+                   ]
+      findGroupField "clausename" [f] `shouldBe` Just f
+
+    it "Should find items case insensitively" $ do
+      let f = FieldDescription "fieldId" "fieldName" ["CLAuseName"] StringField
+      findGroupField "clausename" [f] `shouldBe` Just f
+
+    it "Should find items by any clausename" $ do
+      let f = FieldDescription "id" "name" ["alpha", "beta", "gamma"] StringField
+      findGroupField "alpha" [f] `shouldBe` Just f
+      findGroupField "beta" [f] `shouldBe` Just f
+      findGroupField "gamma" [f] `shouldBe` Just f
+
+    it "Should freturn Nothing on failure" $ do
+      findGroupField "nonesuch" [] `shouldBe` Nothing

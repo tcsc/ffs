@@ -4,6 +4,7 @@ module Ffs.Jira
   ( SearchResult(..)
   , issueKey
   , issueURI
+  , issueFields
   , SearchResults(..)
   , issuesStartAt
   , issuesMaxResults
@@ -24,15 +25,24 @@ module Ffs.Jira
   , logWorkStarted
   , logAuthor
   , logTimeSpent
+  , FieldDescription(..)
+  , FieldType(..)
+  , fldName
+  , fldId
+  , fldType
+  , fldClauseNames
   , search
   , getWorkLog
+  , getFields
   ) where
 
 import Control.Exception
 import Control.Lens
-import Data.Aeson
+import Data.Aeson as Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString as BS
+import Data.HashMap.Lazy as HashMap
+import Data.Map.Strict as Map
 import Data.Text as Text
 import Data.Time.Calendar
 import Data.Time.Clock
@@ -57,13 +67,23 @@ debug = Log.debugM "jira"
 data SearchResult = SearchResult
   { _issueKey :: Text
   , _issueURI :: Text
+  , _issueFields :: Map Text Aeson.Value
   } deriving (Show, Eq)
 
 makeLenses ''SearchResult
 
 instance FromJSON SearchResult where
-  parseJSON = withObject "Search Result" $ \obj ->
-    SearchResult <$> obj .: "key" <*> obj .: "self"
+  parseJSON = withObject "Search Result" $ \obj -> do
+    key <- obj .: "key"
+    uri <- obj .: "self"
+    fields <- case HashMap.lookup "fields" obj of
+                Nothing -> fail $ "key fields not present"
+                Just val -> withObject "fields" repack val
+    return $ SearchResult key uri fields
+    where
+      repack :: Aeson.Object -> Parser (Map.Map Text Aeson.Value)
+      repack obj = return $
+        HashMap.foldlWithKey' (\a k v -> Map.insert k v a) Map.empty obj
 
 -- | Search results from a JQL query returning a list of issues
 data SearchResults = SearchResults
@@ -89,7 +109,6 @@ data User = User
   , _userDisplayName :: Text
   , _userUrl :: Text
   } deriving (Show, Eq)
-
 makeLenses ''User
 
 instance FromJSON User where
@@ -110,7 +129,6 @@ data WorkLogItem = WorkLogItem
   , _logAuthor :: User
   , _logTimeSpent :: Int
   } deriving (Show, Eq)
-
 makeLenses ''WorkLogItem
 
 instance FromJSON WorkLogItem where
@@ -165,4 +183,54 @@ getWorkLog options host key = do
     url = (uriToString id absoluteUrl) ""
     absoluteUrl = host
       { uriPath = printf "/rest/api/2/issue/%s/worklog" key
+      }
+
+data FieldType = StringField
+               | NumberField
+               | ArrayField
+               | OptionField
+               | DateTimeField
+               | AnyField
+               | UnknownFieldType
+               | OtherFieldType Text
+  deriving (Show, Eq)
+
+instance FromJSON FieldType where
+  parseJSON = withText "field type" $ \t ->
+    let ft = case t of
+              "string" -> StringField
+              "number" -> NumberField
+              "array" -> ArrayField
+              "option" -> OptionField
+              "any" -> AnyField
+              _ -> OtherFieldType t
+    in return ft
+
+data FieldDescription = FieldDescription
+  { _fldId :: Text
+  , _fldName :: Text
+  , _fldClauseNames :: [Text]
+  , _fldType :: FieldType
+  } deriving (Show, Eq)
+makeLenses ''FieldDescription
+
+instance FromJSON FieldDescription where
+  parseJSON =
+    withObject "field description" $ \obj -> do
+      fieldId <- obj .: "id"
+      fieldName <- obj .: "name"
+      clauseNames <- obj .: "clauseNames"
+      schema <- obj .:? "schema"
+      fieldType <- maybe (return UnknownFieldType) (.: "type") schema
+      return $ FieldDescription fieldId fieldName clauseNames fieldType
+
+getFields :: Wreq.Options -> URI -> IO [FieldDescription]
+getFields options host = do
+  debug $ printf "Fetching field descriptors from %s..." url
+  response <- Wreq.getWith options url >>= asJSON
+  return $ response ^. responseBody
+  where
+    url = (uriToString id absoluteUrl) ""
+    absoluteUrl = host
+      { uriPath = "/rest/api/2/field"
       }

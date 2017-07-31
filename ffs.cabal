@@ -43,6 +43,7 @@ library
                      , transformers
                      , tuple
                      , time
+                     , unordered-containers
                      , urlencoded
                      , wreq
   default-language:    Haskell2010

@@ -12,6 +12,7 @@ module Ffs
     , optUseInsecureTLS
     , optLastDayOfWeek
     , optUser
+    , findGroupField
     , mergeOptions
     ) where
 
@@ -19,6 +20,7 @@ import Control.Exception
 import Control.Lens
 import Control.Concurrent.ParallelIO
 import Control.Monad
+import Data.Aeson as Aeson
 import Data.List as L
 import Data.Set as Set
 import Data.Map.Strict as Map
@@ -38,7 +40,7 @@ import Network.HTTP.Client.TLS (mkManagerSettings)
 import Paths_ffs (version)
 import System.Log.Logger as Log
 import qualified System.Log.Handler.Simple as Log
-import System.Exit (exitFailure)
+import System.Exit (ExitCode, exitWith, exitFailure)
 import System.IO
 import Text.PrettyPrint.Boxes as Box
 import Text.Printf
@@ -64,6 +66,7 @@ type TimeSheet = Map (Day, Text) Int
 main :: IO ()
 main = doMain `catches` [Handler onHttpException,
                          Handler onError,
+                         Handler onExit,
                          Handler onSomeException]
   where
     doMain :: IO ()
@@ -92,8 +95,12 @@ main = doMain `catches` [Handler onHttpException,
     onError :: ErrorCall -> IO ()
     onError (ErrorCallWithLocation msg _) = exit msg
 
+    onExit :: ExitCode -> IO ()
+    onExit e = exitWith e
+
     onSomeException :: SomeException -> IO ()
     onSomeException e = exit $ show e
+
 
 -- | The part that does all the heavy lifting
 --
@@ -136,7 +143,9 @@ main' cli = do
   log <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
-  let ts = collateTimeSheet log id
+  groupExtractor <- mkGroupExtractor options wreqCfg url myIssues
+
+  let ts = collateTimeSheet log groupExtractor
 
   putStrLn $ renderTimeSheet dateRange ts
 
@@ -224,22 +233,79 @@ renderTimeSheet (start, end) timeSheet =
 -- happens at the right time (i.e. during the evaluation of getUrl, rather
 -- than on first use).
 getUrl :: Args -> FfsOptions -> IO URI
-getUrl cli options =
+getUrl cli options = do
+  debug $ printf "Configured url: %s" $ (uriToString id (options^.optJiraHost)) ""
   let u = case options^.optJiraHost of
             u | u == nullURI -> error "No JIRA URL set"
-            u | (uriScheme u) /= "https" ->
+            u | (uriScheme u) /= "https:" ->
               if (cli^.argForce)
                 then u
                 else error "JIRA url is not HTTPS. Override with --force,\
                            \ but be warned that this will send your\
                            \ credentials over the network in plain text."
             u -> u
-  in return $! u
+  return $! u
 
 
 -- | A function that can take an issue key and map it to an aggregation group
 -- name
 type GroupExtractor = Text -> Text
+
+mkGroupExtractor :: FfsOptions ->
+                    Wreq.Options ->
+                    URI ->
+                    IssueMap -> IO GroupExtractor
+mkGroupExtractor options wreqConfig host issues = do
+  case (options^.optGroupBy) of
+    Issue -> return id
+    Field fieldName -> mkFieldGroupExtractor fieldName options wreqConfig host issues
+
+mkFieldGroupExtractor :: Text ->
+                         FfsOptions ->
+                         Wreq.Options ->
+                         URI ->
+                         IssueMap -> IO GroupExtractor
+mkFieldGroupExtractor fieldName options wreqConfig host issues = do
+  fields <- L.filter isGroup <$> Jira.getFields wreqConfig host
+  let field = case findGroupField fieldName fields of
+                Just f -> f
+                Nothing -> error "No such field, or not a simple value."
+  debug $ printf "Field name \"%s\" maps to field id \"%s\"" fieldName (field^.fldId)
+  return $ extractGroup field issues
+  where
+  -- | Filters out fields we can't deal with during collation, mainly because
+  -- we don't know how to convert their values into a bucket identifier
+  isGroup :: FieldDescription -> Bool
+  isGroup fd =
+    let t = fd ^. fldType
+    in (t == StringField) || (t == NumberField)
+
+  -- | The actual bucket name extractor
+  extractGroup :: FieldDescription -> IssueMap -> Text -> Text
+  extractGroup field issues key =
+    let issue = issues ! key
+        val = (issue ^. issueFields) ! (field ^. fldId)
+    in text val
+
+  -- | Format an Aeson value as a string for use as a bucket key, and eventual
+  -- display
+  text :: Aeson.Value -> Text
+  text v = case v of
+             Aeson.String s -> s
+             Aeson.Number n -> pack $ show n
+             _ -> pack $ show v
+
+-- | Look up a field descriptor for the user-supplied field name, using the
+-- field's JQL clause name list as the definitive source of field names
+findGroupField :: Text -> [FieldDescription] -> Maybe FieldDescription
+findGroupField name = L.find (fieldHasName $ toCaseFold name)
+  where
+  -- | Case-insensitive check to see if a field description has a clause name
+  -- matching the supplied text (assuming that supplied name has already been
+  -- converted to fold case.
+  fieldHasName :: Text -> FieldDescription -> Bool
+  fieldHasName name f = isJust $
+    L.find (\s -> name == (toCaseFold s)) (f^.fldClauseNames)
 
 -- | Collates a collection of work logs into a buckets-per-day grid. The
 -- bucket name is generated by applying an extraction function to the
@@ -289,22 +355,24 @@ loadOptions cli = do
 s ~? Just a  = s .~ a
 s ~? Nothing = id
 
-
 -- | Merges the command-line options with those loaded from file. Produces a
 -- new Args.Options with file-based settings overridden by command line args.
 mergeOptions :: Args -> Config -> FfsOptions
 mergeOptions cmdline file =
-  defaultOptions & optUsername ~? (file^.cfgLogin)
-                 & optUsername ~? (cmdline^.argLogin)
-                 & optPassword ~? (file^.cfgPassword)
-                 & optPassword ~? (cmdline^.argPassword)
-                 & optJiraHost ~? (file^.cfgHost)
-                 & optJiraHost ~? (cmdline^.argUrl)
-                 & optUseInsecureTLS ~? (file^.cfgInsecure)
-                 & optUseInsecureTLS ~? (cmdline^.argInsecure)
-                 & optLastDayOfWeek ~? (file^.cfgEndOfWeek)
-                 & optLastDayOfWeek ~? (cmdline^.argLastDayOfWeek)
-                 & optUser .~ (cmdline^.argUser)
+  Options.defaultOptions
+    & optUsername ~? (file^.cfgLogin)
+    & optUsername ~? (cmdline^.argLogin)
+    & optPassword ~? (file^.cfgPassword)
+    & optPassword ~? (cmdline^.argPassword)
+    & optJiraHost ~? (file^.cfgHost)
+    & optJiraHost ~? (cmdline^.argUrl)
+    & optUseInsecureTLS ~? (file^.cfgInsecure)
+    & optUseInsecureTLS ~? (cmdline^.argInsecure)
+    & optLastDayOfWeek ~? (file^.cfgEndOfWeek)
+    & optLastDayOfWeek ~? (cmdline^.argLastDayOfWeek)
+    & optGroupBy ~? (file^.cfgGroupBy)
+    & optGroupBy ~? (cmdline^.argGroupBy)
+    & optUser .~ (cmdline^.argUser)
 
 -- | Turns character echoing off on StdIn so we can enter passwords less insecurely
 withEcho :: Bool -> IO a -> IO a
