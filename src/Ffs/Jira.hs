@@ -32,6 +32,7 @@ module Ffs.Jira
   , fldType
   , fldClauseNames
   , search
+  , getIssue
   , getWorkLog
   , getFields
   ) where
@@ -176,7 +177,7 @@ search options host jql = do
 
 getWorkLog :: Wreq.Options -> URI -> Text -> IO [WorkLogItem]
 getWorkLog options host key = do
-  debug $ printf "Starting fetch of log for %s..." key
+  debug $ printf "Fetching worklog for issue %s..." key
   response <- Wreq.getWith options url >>= asJSON
   return $ response ^. responseBody ^. logItems
   where
@@ -233,4 +234,15 @@ getFields options host = do
     url = (uriToString id absoluteUrl) ""
     absoluteUrl = host
       { uriPath = "/rest/api/2/field"
+      }
+
+getIssue :: Wreq.Options -> URI -> Text -> IO SearchResult
+getIssue options host key = do
+  debug $ printf "Fetching issue %s..." key
+  response <- Wreq.getWith options url >>= asJSON
+  return $ response ^. responseBody
+  where
+    url = (uriToString id absoluteUrl) ""
+    absoluteUrl = host
+      { uriPath = printf "/rest/api/2/issue/%s" key
       }

@@ -16,10 +16,11 @@ import Ffs.Time
 data Grouping
   = Issue
   | Field Text
+  | Epic
   deriving (Eq, Show)
 
 instance Read Grouping where
-  readPrec = lift $ choice [parseIssue, parseGroup]
+  readPrec = lift $ choice [parseIssue, parseGroup, parseEpic]
     where
       parseIssue = do
         ReadP.string "issue"
@@ -29,6 +30,10 @@ instance Read Grouping where
         ReadP.string "field:"
         name <- ReadP.munch (\_ -> True)
         return $! Field $ (strip . pack) name
+      parseEpic = do
+        ReadP.string "epic"
+        ReadP.eof
+        return Epic
 
 
 data FfsOptions = FfsOptions

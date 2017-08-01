@@ -27,3 +27,9 @@ groupingParser = describe "Grouping option parser" $ do
 
   it "Must trim whitespace from custom fields" $ do
     readMaybe "field: bananas\t" `shouldBe` (Just $ Field "bananas")
+
+  it "Must parse the epic option" $ do
+    readMaybe "epic" `shouldBe` (Just Epic)
+
+  it "Must not parse the epic option with trailing characters" $ do
+    readMaybe "epicsareasoforsuckers" `shouldBe` (Nothing :: Maybe Grouping)

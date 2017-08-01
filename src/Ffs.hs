@@ -103,10 +103,6 @@ main = doMain `catches` [Handler onHttpException,
 
 
 -- | The part that does all the heavy lifting
---
--- TODO: Decouple the program options from the record returned by the command
---       line parser. It's not a good fit for doing double duty when merged
---       into the file-based config.
 main' :: Args -> IO ()
 main' cli = do
   -- Parse the config file and merge settings with the command line args
@@ -251,6 +247,8 @@ getUrl cli options = do
 -- name
 type GroupExtractor = Text -> Text
 
+-- | Construct a group (a.k.a bucket) name extractor function based on the
+-- input parameters.
 mkGroupExtractor :: FfsOptions ->
                     Wreq.Options ->
                     URI ->
@@ -259,7 +257,10 @@ mkGroupExtractor options wreqConfig host issues = do
   case (options^.optGroupBy) of
     Issue -> return id
     Field fieldName -> mkFieldGroupExtractor fieldName options wreqConfig host issues
+    Epic -> mkEpicGroupExtractor options wreqConfig host issues
 
+-- | Constructs a group extraction function that will group will aggregate time
+-- based on the value of a given field.
 mkFieldGroupExtractor :: Text ->
                          FfsOptions ->
                          Wreq.Options ->
@@ -285,15 +286,89 @@ mkFieldGroupExtractor fieldName options wreqConfig host issues = do
   extractGroup field issues key =
     let issue = issues ! key
         val = (issue ^. issueFields) ! (field ^. fldId)
-    in text val
+    in ftext val
 
-  -- | Format an Aeson value as a string for use as a bucket key, and eventual
-  -- display
-  text :: Aeson.Value -> Text
-  text v = case v of
-             Aeson.String s -> s
-             Aeson.Number n -> pack $ show n
-             _ -> pack $ show v
+-- | Format an Aeson value as a string for use as a bucket key, and eventual
+-- display
+ftext :: Aeson.Value -> Text
+ftext v = case v of
+            Aeson.String s -> s
+            Aeson.Number n -> pack $ show n
+            _ -> pack $ show v
+
+mkEpicGroupExtractor :: FfsOptions ->
+                        Wreq.Options ->
+                        URI ->
+                        IssueMap -> IO GroupExtractor
+mkEpicGroupExtractor options wreqConfig host issues = do
+  debug "Preparing to group by epic..."
+  fields <- Jira.getFields wreqConfig host
+  let epicLinkFieldId = case L.find (fieldNameIs "Epic Link") fields of
+                          Just fd -> fd^.fldId
+                          Nothing -> error "Epic Link field not found"
+
+  debug $ printf "Epic Link field ID is %s" epicLinkFieldId
+
+  let epicNameFieldId = case L.find (fieldNameIs "Epic Name") fields of
+                          Just fd -> fd^.fldId
+                          Nothing -> error "Epic Name field not found"
+
+  debug $ printf "Epic Name field ID is %s" epicNameFieldId
+
+  -- collate a list of unique epics to fetch
+  let epicIds = Map.foldl (accumulateEpics epicLinkFieldId) Set.empty issues
+
+  -- get all the epics we need (in parallel, extract the epic names out of the
+  -- issues and index them by their keys
+  let fetchEpics = L.map getIssue $ Set.toList epicIds
+  let getEpicName = \e -> ftext $ (e^.issueFields) ! epicNameFieldId
+  epics <- Map.fromList
+    <$> L.map (\(k,i) -> (k, getEpicName i))
+    <$> parallel fetchEpics
+
+  -- the result is a partial application of extractEpic that can be used to map
+  -- issue keys to epic names.
+  return $ extractEpic epicLinkFieldId issues epics
+
+  where
+    fieldNameIs :: Text -> FieldDescription -> Bool
+    fieldNameIs n fd = (fd^.fldName) == n
+
+    getEpicLink :: Text -> SearchResult -> Maybe Text
+    getEpicLink epicLinkFieldId issue =
+      case Map.lookup epicLinkFieldId (issue^.issueFields) of
+        Nothing -> Nothing
+        Just (Aeson.Null) -> Nothing
+        Just (Aeson.String s) -> Just s
+        _ -> error "Epic Link field has unexpected type"
+
+    -- | A fold function to build a set of unique epic keys that we will need to
+    -- fetch.
+    accumulateEpics :: Text -> Set Text -> SearchResult -> Set Text
+    accumulateEpics epicLinkFieldId set issue =
+      let maybeEpic = getEpicLink epicLinkFieldId issue
+      in maybe set (\epic -> Set.insert epic set) maybeEpic
+
+    -- | Creates an IO action that fetches a single JIRA issue when executed.
+    getIssue :: Text -> IO (Text, SearchResult)
+    getIssue key = do
+      issue <- Jira.getIssue wreqConfig host key
+      return (key, issue)
+
+    -- | Extracts the epic name from a given issue. Falls back to the original
+    -- issue key if no such epic exists. Bails out entirely if the epic link is
+    -- not in the epics map.
+    extractEpic :: Text -> IssueMap -> Map Text Text -> Text -> Text
+    extractEpic epicLinkFieldId issues epics key =
+      let issue = issues ! key
+          maybeEpic = getEpicLink epicLinkFieldId issue
+      in maybe key (lookupOrDie epics) maybeEpic
+
+lookupOrDie :: Map Text Text -> Text -> Text
+lookupOrDie epics key  =
+  case Map.lookup key epics of
+    Just t -> t
+    Nothing -> error $ printf "No such key: %s" key
 
 -- | Look up a field descriptor for the user-supplied field name, using the
 -- field's JQL clause name list as the definitive source of field names
@@ -379,7 +454,6 @@ withEcho :: Bool -> IO a -> IO a
 withEcho echo action = do
   oldValue <- hGetEcho stdin
   bracket_ (hSetEcho stdin echo) (hSetEcho stdin oldValue) action
-
 
 -- | Extracts the user's JIRA credentials from the settings object, and falls
 -- back to prompting the user if they're not already set.
