@@ -78,7 +78,7 @@ configMergeSpec =
           setByCliSpec argLastDayOfWeek optLastDayOfWeek Thursday
           cliOverridesConfigSpec argLastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
      context "Group by" $
-       do defaultSpec optGroupBy Issue
+       do defaultSpec optGroupBy Options.Issue
           setByConfigSpec cfgGroupBy optGroupBy (Field "bananas")
           setByCliSpec argGroupBy optGroupBy (Field "bananas")
           cliOverridesConfigSpec argGroupBy (Field "bananas")

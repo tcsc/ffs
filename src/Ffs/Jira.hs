@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric, TemplateHaskell #-}
 
 module Ffs.Jira
-  ( SearchResult(..)
+  ( Issue(..)
   , issueKey
   , issueURI
   , issueFields
@@ -65,22 +65,22 @@ info = Log.infoM "jira"
 debug = Log.debugM "jira"
 
 -- | An issue reference returned as a search result
-data SearchResult = SearchResult
+data Issue = Issue
   { _issueKey :: Text
   , _issueURI :: Text
-  , _issueFields :: Map Text Aeson.Value
+  , _issueFields :: Aeson.Object
   } deriving (Show, Eq)
 
-makeLenses ''SearchResult
+makeLenses ''Issue
 
-instance FromJSON SearchResult where
+instance FromJSON Issue where
   parseJSON = withObject "Search Result" $ \obj -> do
     key <- obj .: "key"
     uri <- obj .: "self"
     fields <- case HashMap.lookup "fields" obj of
                 Nothing -> fail $ "key fields not present"
-                Just val -> withObject "fields" repack val
-    return $ SearchResult key uri fields
+                Just val -> withObject "fields" return val
+    return $ Issue key uri fields
     where
       repack :: Aeson.Object -> Parser (Map.Map Text Aeson.Value)
       repack obj = return $
@@ -91,7 +91,7 @@ data SearchResults = SearchResults
   { _issuesStartAt :: Int
   , _issuesMaxResults :: Int
   , _issuesTotal :: Int
-  , _issues :: [SearchResult]
+  , _issues :: [Issue]
   } deriving (Show, Eq)
 
 makeLenses ''SearchResults
@@ -163,7 +163,7 @@ instance FromJSON WorkLogItems where
 escape :: String -> String
 escape = escapeURIString isAllowedInURI
 
-search :: Wreq.Options -> URI -> Text -> IO [SearchResult]
+search :: Wreq.Options -> URI -> Text -> IO [Issue]
 search options host jql = do
   debug $ printf "Fetching %s..." url
   resp <- Wreq.getWith options url >>= asJSON
@@ -236,7 +236,7 @@ getFields options host = do
       { uriPath = "/rest/api/2/field"
       }
 
-getIssue :: Wreq.Options -> URI -> Text -> IO SearchResult
+getIssue :: Wreq.Options -> URI -> Text -> IO Issue
 getIssue options host key = do
   debug $ printf "Fetching issue %s..." key
   response <- Wreq.getWith options url >>= asJSON

@@ -21,8 +21,9 @@ import Control.Lens
 import Control.Concurrent.ParallelIO
 import Control.Monad
 import Data.Aeson as Aeson
+import Data.Aeson.Types as Aeson
+import Data.HashMap.Lazy as HashMap hiding ((!))
 import Data.List as L
-import Data.Set as Set
 import Data.Map.Strict as Map
 import Data.Maybe
 import Data.Text as T
@@ -31,6 +32,7 @@ import Data.Time.Calendar
 import Data.Time.Clock
 import Data.Time.Format
 import Data.Time.LocalTime
+import Data.Set as Set
 import Data.Version as Ver (showVersion)
 import Network.URI
 import Network.Connection      (TLSSettings (..))
@@ -57,7 +59,7 @@ debug = Log.debugM "main"
 
 type DateRange = (Day, Day)
 type Credentials = (Text, Text)
-type IssueMap = Map Text SearchResult
+type IssueMap = Map Text Issue
 type WorkLogMap = Map Text [WorkLogItem]
 type TimeSheet = Map (Day, Text) Int
 
@@ -136,16 +138,54 @@ main' cli = do
 
   -- get the work logs from JIRA and filter out any that aren't in our range
   -- of interest
-  log <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
+  rawlog <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
-  groupExtractor <- mkGroupExtractor options wreqCfg url myIssues
+  let log = rollUpSubtasks myIssues rawlog
+
+  -- work out what new issues we need to fetch so we can have info about
+  -- supertasks if necessary
+  debug $ printf "original keys: %s" (show issueKeys)
+  debug $ printf "rollup keys: %s" (show $ Map.keys log)
+
+  let missingIssues = Map.keys log L.\\ issueKeys
+  info $ "Fetching parent issues..."
+  extraIssues <- parallel $ L.map (\k -> Jira.getIssue wreqCfg url k) missingIssues
+  let allIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m) myIssues extraIssues
+
+  debug $ "Building group extractor..."
+
+  groupExtractor <- mkGroupExtractor options wreqCfg url allIssues
+
+  debug $ "Collating timesheet..."
 
   let ts = collateTimeSheet log groupExtractor
+
+  debug $ "Rendering timesheet..."
 
   putStrLn $ renderTimeSheet dateRange ts
 
   return ()
+
+rollUpSubtasks :: IssueMap -> WorkLogMap -> WorkLogMap
+rollUpSubtasks issues log =
+  Map.foldlWithKey rollUp Map.empty log
+  where
+    rollUp :: WorkLogMap -> Text -> [WorkLogItem] -> WorkLogMap
+    rollUp acc key logItems =
+      let parent = getParent key
+      in Map.alter (combineLogs logItems) parent acc
+
+    combineLogs :: [WorkLogItem] -> Maybe [WorkLogItem] -> Maybe [WorkLogItem]
+    combineLogs newItems existingItems =
+      Just $ maybe newItems (++ newItems) existingItems
+
+    getParent :: Text -> Text
+    getParent key =
+      let issue = issues ! key
+          maybeParent = Aeson.parseMaybe (\obj -> (obj .: "parent") >>= (.: "key"))
+                                         (issue^.issueFields)
+      in fromMaybe key maybeParent
 
 -- | Renders a timesheet as a table
 renderTimeSheet :: DateRange -> TimeSheet -> String
@@ -255,9 +295,12 @@ mkGroupExtractor :: FfsOptions ->
                     IssueMap -> IO GroupExtractor
 mkGroupExtractor options wreqConfig host issues = do
   case (options^.optGroupBy) of
-    Issue -> return id
-    Field fieldName -> mkFieldGroupExtractor fieldName options wreqConfig host issues
-    Epic -> mkEpicGroupExtractor options wreqConfig host issues
+    Options.Issue ->
+      return id
+    Field fieldName ->
+      mkFieldGroupExtractor fieldName options wreqConfig host issues
+    Epic ->
+      mkEpicGroupExtractor options wreqConfig host issues
 
 -- | Constructs a group extraction function that will group will aggregate time
 -- based on the value of a given field.
@@ -284,9 +327,14 @@ mkFieldGroupExtractor fieldName options wreqConfig host issues = do
   -- | The actual bucket name extractor
   extractGroup :: FieldDescription -> IssueMap -> Text -> Text
   extractGroup field issues key =
-    let issue = issues ! key
-        val = (issue ^. issueFields) ! (field ^. fldId)
-    in ftext val
+    let issue = case Map.lookup key issues of
+                  Just i -> i
+                  Nothing -> error $ printf "No such key %s" key
+        fieldId = (field^.fldId)
+        val = HashMap.lookup fieldId (issue^.issueFields)
+    in case val of
+      Just v -> ftext v
+      Nothing -> error $ printf "No such field: %s" fieldId
 
 -- | Format an Aeson value as a string for use as a bucket key, and eventual
 -- display
@@ -321,10 +369,10 @@ mkEpicGroupExtractor options wreqConfig host issues = do
   -- get all the epics we need (in parallel, extract the epic names out of the
   -- issues and index them by their keys
   let fetchEpics = L.map getIssue $ Set.toList epicIds
-  let getEpicName = \e -> ftext $ (e^.issueFields) ! epicNameFieldId
-  epics <- Map.fromList
-    <$> L.map (\(k,i) -> (k, getEpicName i))
-    <$> parallel fetchEpics
+  epics <- do
+    epicIssues <- parallel fetchEpics
+    let epicNames = L.map (\i -> (i^.issueKey, getEpicName epicNameFieldId i)) epicIssues
+    return $ Map.fromList epicNames
 
   -- the result is a partial application of extractEpic that can be used to map
   -- issue keys to epic names.
@@ -334,33 +382,39 @@ mkEpicGroupExtractor options wreqConfig host issues = do
     fieldNameIs :: Text -> FieldDescription -> Bool
     fieldNameIs n fd = (fd^.fldName) == n
 
-    getEpicLink :: Text -> SearchResult -> Maybe Text
+    getEpicLink :: Text -> Issue -> Maybe Text
     getEpicLink epicLinkFieldId issue =
-      case Map.lookup epicLinkFieldId (issue^.issueFields) of
+      case HashMap.lookup epicLinkFieldId (issue^.issueFields) of
         Nothing -> Nothing
         Just (Aeson.Null) -> Nothing
         Just (Aeson.String s) -> Just s
         _ -> error "Epic Link field has unexpected type"
 
+    getEpicName :: Text -> Issue -> Text
+    getEpicName epicNameFieldId epic =
+      case HashMap.lookup epicNameFieldId (epic^.issueFields) of
+        Just v -> ftext v
+        Nothing -> error $ printf "No such field: %s" epicNameFieldId
+
     -- | A fold function to build a set of unique epic keys that we will need to
     -- fetch.
-    accumulateEpics :: Text -> Set Text -> SearchResult -> Set Text
+    accumulateEpics :: Text -> Set Text -> Issue -> Set Text
     accumulateEpics epicLinkFieldId set issue =
       let maybeEpic = getEpicLink epicLinkFieldId issue
       in maybe set (\epic -> Set.insert epic set) maybeEpic
 
     -- | Creates an IO action that fetches a single JIRA issue when executed.
-    getIssue :: Text -> IO (Text, SearchResult)
-    getIssue key = do
-      issue <- Jira.getIssue wreqConfig host key
-      return (key, issue)
+    getIssue :: Text -> IO Issue
+    getIssue key = Jira.getIssue wreqConfig host key
 
     -- | Extracts the epic name from a given issue. Falls back to the original
     -- issue key if no such epic exists. Bails out entirely if the epic link is
     -- not in the epics map.
     extractEpic :: Text -> IssueMap -> Map Text Text -> Text -> Text
     extractEpic epicLinkFieldId issues epics key =
-      let issue = issues ! key
+      let issue = case Map.lookup key issues of
+                    Just i -> i
+                    Nothing -> error $ printf "No such key: %s" key
           maybeEpic = getEpicLink epicLinkFieldId issue
       in maybe key (lookupOrDie epics) maybeEpic
 

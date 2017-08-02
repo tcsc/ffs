@@ -3,6 +3,7 @@ module Ffs.JiraSpec (spec) where
 
 import Data.Aeson as Aeson
 import Data.ByteString
+import Data.HashMap.Lazy as HashMap
 import Data.Map.Strict as Map
 import Data.Maybe
 import Data.String.QQ
@@ -53,10 +54,10 @@ searchResultParser = describe "Search result parser" $ do
       , _issuesMaxResults = 50
       , _issuesTotal = 1
       , _issues =
-        [ Jira.SearchResult
+        [ Jira.Issue
             "HSP-1"
             "http://www.example.com/jira/rest/api/2/issue/10001"
-            (Map.fromList
+            (HashMap.fromList
               [ ("description", Aeson.String "Some text goes here")
               ])
         ]
