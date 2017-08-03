@@ -61,8 +61,7 @@ parseConfig text = do
   rollUp <- maybeGet cfg "report" "roll-up-subtasks"
   host <- asUrl <$> maybeGet cfg "JIRA" "host"
   insecure <- maybeGet cfg "JIRA" "insecure"
-  return $
-    Config
+  return Config
     { _cfgLogin = login
     , _cfgPassword = pwd
     , _cfgHost = host
@@ -75,7 +74,7 @@ parseConfig text = do
     maybeGet :: Get_C a => ConfigParser ->
                            String ->
                            String -> Either CPError (Maybe a)
-    maybeGet cfg sec name = do
+    maybeGet cfg sec name =
       if has_option cfg sec name
         then Just <$> get cfg sec name
         else return Nothing
@@ -104,6 +103,6 @@ loadConfig path = catch loadConfig' handleErr
     loadConfig' = do
       text <- readFile path
       let result = parseConfig text
-      return $ either (\_ -> emptyConfig) id result
+      return $ either (const emptyConfig) id result
     handleErr :: IOException -> IO Config
     handleErr _ = return emptyConfig

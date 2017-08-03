@@ -14,8 +14,7 @@ import Test.Hspec
 import Ffs.Jira as Jira
 
 spec :: Spec
-spec = describe "JIRA REST API" $ do
-  jsonParsers
+spec = describe "JIRA REST API" jsonParsers
 
 jsonParsers :: Spec
 jsonParsers = describe "JSON Parsers" $ do
@@ -63,7 +62,7 @@ searchResultParser = describe "Search result parser" $ do
         ]
       }
 
-    Aeson.decodeStrict(text) `shouldBe` (Just expected)
+    Aeson.decodeStrict text `shouldBe` Just expected
 
   it "Must handle an empty issues list" $ do
     let text = [s|{
@@ -81,10 +80,10 @@ searchResultParser = describe "Search result parser" $ do
       , _issues = []
     }
 
-    Aeson.decodeStrict(text) `shouldBe` (Just expected)
+    Aeson.decodeStrict text `shouldBe` Just expected
 
 workLogParser :: Spec
-workLogParser = describe "Work log parser" $ do
+workLogParser = describe "Work log parser" $
   it "Must parse the example JSON" $ do
     let text = [s|{
         "startAt": 0,
@@ -137,7 +136,7 @@ workLogParser = describe "Work log parser" $ do
         ]
       }
 
-    Aeson.eitherDecode(text) `shouldBe` (Right expected)
+    Aeson.eitherDecode text `shouldBe` Right expected
 
 fieldDescriptionParser :: Spec
 fieldDescriptionParser =
@@ -181,7 +180,7 @@ fieldDescriptionParser =
                      , FieldDescription "summary" "Summary" ["summary"] StringField
                      ]
 
-      Aeson.eitherDecode(text) `shouldBe` (Right expected)
+      Aeson.eitherDecode text `shouldBe` Right expected
 
     it "Must handle schemaless fields" $ do
       let text = [s|
@@ -200,6 +199,6 @@ fieldDescriptionParser =
                        ["id", "issue", "issuekey", "key"]
                        UnknownFieldType
 
-      Aeson.eitherDecode(text) `shouldBe` Right expected
+      Aeson.eitherDecode text `shouldBe` Right expected
 
 

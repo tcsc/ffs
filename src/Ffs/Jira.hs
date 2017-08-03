@@ -78,7 +78,7 @@ instance FromJSON Issue where
     key <- obj .: "key"
     uri <- obj .: "self"
     fields <- case HashMap.lookup "fields" obj of
-                Nothing -> fail $ "key fields not present"
+                Nothing -> fail "key fields not present"
                 Just val -> withObject "fields" return val
     return $ Issue key uri fields
     where
@@ -169,7 +169,7 @@ search options host jql = do
   resp <- Wreq.getWith options url >>= asJSON
   return $ resp ^. responseBody ^. issues
   where
-    url = (uriToString id completeUrl) ""
+    url = uriToString id completeUrl ""
     completeUrl = host
       { uriPath = "/rest/api/2/search"
       , uriQuery = printf "?jql=%s" (escape $ Text.unpack jql)
@@ -181,7 +181,7 @@ getWorkLog options host key = do
   response <- Wreq.getWith options url >>= asJSON
   return $ response ^. responseBody ^. logItems
   where
-    url = (uriToString id absoluteUrl) ""
+    url = uriToString id absoluteUrl ""
     absoluteUrl = host
       { uriPath = printf "/rest/api/2/issue/%s/worklog" key
       }
@@ -231,7 +231,7 @@ getFields options host = do
   response <- Wreq.getWith options url >>= asJSON
   return $ response ^. responseBody
   where
-    url = (uriToString id absoluteUrl) ""
+    url = uriToString id absoluteUrl ""
     absoluteUrl = host
       { uriPath = "/rest/api/2/field"
       }
@@ -242,7 +242,7 @@ getIssue options host key = do
   response <- Wreq.getWith options url >>= asJSON
   return $ response ^. responseBody
   where
-    url = (uriToString id absoluteUrl) ""
+    url = uriToString id absoluteUrl ""
     absoluteUrl = host
       { uriPath = printf "/rest/api/2/issue/%s" key
       }

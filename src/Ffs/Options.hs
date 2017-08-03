@@ -28,7 +28,7 @@ instance Read Grouping where
         return Issue
       parseGroup = do
         ReadP.string "field:"
-        name <- ReadP.munch (\_ -> True)
+        name <- ReadP.munch (const True)
         return $! Field $ (strip . pack) name
       parseEpic = do
         ReadP.string "epic"

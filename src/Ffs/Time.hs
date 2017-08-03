@@ -39,8 +39,8 @@ instance Read DayOfWeek where
 weekForDay :: Day -> DayOfWeek -> (Day, Day)
 weekForDay day weekEndsOn = (rangeStart, rangeEnd)
   where
-    dayOfWeek = (toInteger $ sel3 $ toWeekDate day) - 1
-    endOfWeek = (iso8601Day weekEndsOn) - 1
+    dayOfWeek = toInteger (sel3 $ toWeekDate day) - 1
+    endOfWeek = iso8601Day weekEndsOn - 1
     weekEndIdx =
       if endOfWeek >= dayOfWeek
         then endOfWeek

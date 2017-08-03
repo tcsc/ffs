@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns, TemplateHaskell #-}
-
 module Ffs
     ( main
     , filterWorkLog
@@ -90,7 +88,7 @@ main = doMain `catches` [Handler onHttpException,
     onHttpException :: HttpException -> IO ()
     onHttpException e = do
       let msg = case e of
-                  HttpExceptionRequest _ content -> (show content)
+                  HttpExceptionRequest _ content -> show content
                   _ -> show e
       exit msg
 
@@ -98,7 +96,7 @@ main = doMain `catches` [Handler onHttpException,
     onError (ErrorCallWithLocation msg _) = exit msg
 
     onExit :: ExitCode -> IO ()
-    onExit e = exitWith e
+    onExit = exitWith
 
     onSomeException :: SomeException -> IO ()
     onSomeException e = exit $ show e
@@ -116,7 +114,7 @@ main' cli = do
 
   localTimeZone <- getCurrentTimeZone
   now <- getZonedTime
-  debug $ "Now: " ++ (formatTime defaultTimeLocale "%FT%R%Q%z" now)
+  debug $ "Now: " ++ formatTime defaultTimeLocale "%FT%R%Q%z" now
 
   let today = localDay (zonedTimeToLocalTime now)
   debug $ "Today: " ++ formatDay today
@@ -146,9 +144,9 @@ main' cli = do
       let log' = rollUpSubtasks myIssues log
       let missingIssues = Map.keys log' L.\\ issueKeys
 
-      info $ "Fetching parent issues..."
-      let fetchIssues =  L.map (\k -> Jira.getIssue wreqCfg url k) missingIssues
-      extraIssues <- parallel $ fetchIssues
+      info "Fetching parent issues..."
+      let fetchIssues =  L.map (Jira.getIssue wreqCfg url) missingIssues
+      extraIssues <- parallel fetchIssues
 
       let issues' = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
                              myIssues
@@ -159,23 +157,23 @@ main' cli = do
       return (log, myIssues)
 
 
-  debug $ "Building group extractor..."
+  debug "Building group extractor..."
 
   groupExtractor <- mkGroupExtractor options wreqCfg url issues'
 
-  debug $ "Collating timesheet..."
+  debug "Collating timesheet..."
 
   let ts = collateTimeSheet log' groupExtractor
 
-  debug $ "Rendering timesheet..."
+  debug "Rendering timesheet..."
 
   putStrLn $ renderTimeSheet dateRange ts
 
   return ()
 
 rollUpSubtasks :: IssueMap -> WorkLogMap -> WorkLogMap
-rollUpSubtasks issues log =
-  Map.foldlWithKey rollUp Map.empty log
+rollUpSubtasks issues =
+  Map.foldlWithKey rollUp Map.empty
   where
     rollUp :: WorkLogMap -> Text -> [WorkLogItem] -> WorkLogMap
     rollUp acc key logItems =
@@ -228,7 +226,8 @@ renderTimeSheet (start, end) timeSheet =
     -- Total value of all time worked for a given bucket
     bucketTotal :: Text -> Int
     bucketTotal bucket =
-      let addTimeIfInBucket = (\(_, b) v acc -> acc + if b == bucket then v else 0)
+      let addTimeIfInBucket (_, b) v acc = acc + if b == bucket then v else 0
+
       in Map.foldrWithKey addTimeIfInBucket 0 timeSheet
 
     -- Generate the columns for the table
@@ -259,7 +258,7 @@ renderTimeSheet (start, end) timeSheet =
 
     fmtTime :: Int -> String
     fmtTime seconds =
-      let hours = ((fromIntegral seconds) / 3600.0) :: Float
+      let hours = (fromIntegral seconds / 3600.0) :: Float
       in printf "%f" hours
 
     days = L.unfoldr genDay start
@@ -276,11 +275,11 @@ renderTimeSheet (start, end) timeSheet =
 -- than on first use).
 getUrl :: Args -> FfsOptions -> IO URI
 getUrl cli options = do
-  debug $ printf "Configured url: %s" $ (uriToString id (options^.optJiraHost)) ""
+  debug $ printf "Configured url: %s" $ uriToString id (options^.optJiraHost) ""
   let u = case options^.optJiraHost of
             u | u == nullURI -> error "No JIRA URL set"
-            u | (uriScheme u) /= "https:" ->
-              if (cli^.argForce)
+            u | uriScheme u /= "https:" ->
+              if cli^.argForce
                 then u
                 else error "JIRA url is not HTTPS. Override with --force,\
                            \ but be warned that this will send your\
@@ -299,8 +298,8 @@ mkGroupExtractor :: FfsOptions ->
                     Wreq.Options ->
                     URI ->
                     IssueMap -> IO GroupExtractor
-mkGroupExtractor options wreqConfig host issues = do
-  case (options^.optGroupBy) of
+mkGroupExtractor options wreqConfig host issues =
+  case options^.optGroupBy of
     Options.Issue ->
       return id
     Field fieldName ->
@@ -317,9 +316,9 @@ mkFieldGroupExtractor :: Text ->
                          IssueMap -> IO GroupExtractor
 mkFieldGroupExtractor fieldName options wreqConfig host issues = do
   fields <- L.filter isGroup <$> Jira.getFields wreqConfig host
-  let field = case findGroupField fieldName fields of
-                Just f -> f
-                Nothing -> error "No such field, or not a simple value."
+  let field = fromMaybe (error "No such field, or not a simple value.")
+                (findGroupField fieldName fields)
+
   debug $ printf "Field name \"%s\" maps to field id \"%s\"" fieldName (field^.fldId)
   return $ extractGroup field issues
   where
@@ -333,9 +332,7 @@ mkFieldGroupExtractor fieldName options wreqConfig host issues = do
   -- | The actual bucket name extractor
   extractGroup :: FieldDescription -> IssueMap -> Text -> Text
   extractGroup field issues key =
-    let issue = case Map.lookup key issues of
-                  Just i -> i
-                  Nothing -> error $ printf "No such key %s" key
+    let issue = lookupOrDie key issues
         fieldId = (field^.fldId)
         val = HashMap.lookup fieldId (issue^.issueFields)
     in case val of
@@ -392,7 +389,7 @@ mkEpicGroupExtractor options wreqConfig host issues = do
     getEpicLink epicLinkFieldId issue =
       case HashMap.lookup epicLinkFieldId (issue^.issueFields) of
         Nothing -> Nothing
-        Just (Aeson.Null) -> Nothing
+        Just Aeson.Null -> Nothing
         Just (Aeson.String s) -> Just s
         _ -> error "Epic Link field has unexpected type"
 
@@ -407,28 +404,25 @@ mkEpicGroupExtractor options wreqConfig host issues = do
     accumulateEpics :: Text -> Set Text -> Issue -> Set Text
     accumulateEpics epicLinkFieldId set issue =
       let maybeEpic = getEpicLink epicLinkFieldId issue
-      in maybe set (\epic -> Set.insert epic set) maybeEpic
+      in maybe set (`Set.insert` set) maybeEpic
 
     -- | Creates an IO action that fetches a single JIRA issue when executed.
     getIssue :: Text -> IO Issue
-    getIssue key = Jira.getIssue wreqConfig host key
+    getIssue = Jira.getIssue wreqConfig host
 
     -- | Extracts the epic name from a given issue. Falls back to the original
     -- issue key if no such epic exists. Bails out entirely if the epic link is
     -- not in the epics map.
     extractEpic :: Text -> IssueMap -> Map Text Text -> Text -> Text
     extractEpic epicLinkFieldId issues epics key =
-      let issue = case Map.lookup key issues of
-                    Just i -> i
-                    Nothing -> error $ printf "No such key: %s" key
+      let issue = lookupOrDie key issues
           maybeEpic = getEpicLink epicLinkFieldId issue
-      in maybe key (lookupOrDie epics) maybeEpic
+      in maybe key (`lookupOrDie` epics) maybeEpic
 
-lookupOrDie :: Map Text Text -> Text -> Text
-lookupOrDie epics key  =
-  case Map.lookup key epics of
-    Just t -> t
-    Nothing -> error $ printf "No such key: %s" key
+lookupOrDie :: (Ord k, PrintfArg k) => k -> Map k v -> v
+lookupOrDie key m  =
+  let maybeVal = Map.lookup key m
+  in fromMaybe (error $ printf "No such key: %s" key) maybeVal
 
 -- | Look up a field descriptor for the user-supplied field name, using the
 -- field's JQL clause name list as the definitive source of field names
@@ -440,7 +434,7 @@ findGroupField name = L.find (fieldHasName $ toCaseFold name)
   -- converted to fold case.
   fieldHasName :: Text -> FieldDescription -> Bool
   fieldHasName name f = isJust $
-    L.find (\s -> name == (toCaseFold s)) (f^.fldClauseNames)
+    L.find (\s -> name == toCaseFold s) (f^.fldClauseNames)
 
 -- | Collates a collection of work logs into a buckets-per-day grid. The
 -- bucket name is generated by applying an extraction function to the
@@ -477,7 +471,7 @@ collateLog bucketKey logItems timeSheet =
 -- | Attempts to load a config file from the user's home directory. If the file
 -- exists and is parseable, the config file settings are merged with those
 -- provided by the user on the CLI.
-loadOptions :: Args -> IO (FfsOptions)
+loadOptions :: Args -> IO FfsOptions
 loadOptions cli = do
   path <- configFilePath
   debug $ printf "Loading config file from %s..." path
@@ -574,7 +568,7 @@ fetchWorkLog cfg url (start, end) keys = do
 --
 filterWorkLog :: TimeZone -> DateRange -> Text -> [WorkLogItem] -> [WorkLogItem]
 filterWorkLog localTimeZone (start, end) username =
-  (L.filter p) . (L.map localiseTimeStamp)
+  L.filter p . L.map localiseTimeStamp
   where
     localiseTimeStamp :: WorkLogItem -> WorkLogItem
     localiseTimeStamp item =

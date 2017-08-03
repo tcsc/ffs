@@ -174,7 +174,7 @@ day :: ZonedTime -> Day
 day = localDay . zonedTimeToLocalTime
 
 timeSheetCollationSpec :: Spec
-timeSheetCollationSpec = do
+timeSheetCollationSpec =
   describe "Timesheet collator" $ do
     let thu = date "2017-07-19T10:00:00.999+0000"
     let fri = date "2017-07-20T09:01:00.001+0000"
@@ -205,7 +205,7 @@ timeSheetCollationSpec = do
       Map.lookup (day thu, "~~FFS-01~~") ts `shouldBe` Just 4200
 
     it "Must collate by groups" $ do
-      let ts = collateTimeSheet workLog (\_ -> "all-work")
+      let ts = collateTimeSheet workLog (const "all-work")
       ts ! (day thu, "all-work") `shouldBe` 4210
 
 
@@ -237,5 +237,5 @@ fieldFinderSpec =
       findGroupField "beta" [f] `shouldBe` Just f
       findGroupField "gamma" [f] `shouldBe` Just f
 
-    it "Should freturn Nothing on failure" $ do
+    it "Should freturn Nothing on failure" $
       findGroupField "nonesuch" [] `shouldBe` Nothing
