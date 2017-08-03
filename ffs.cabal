@@ -1,13 +1,13 @@
 name:                ffs
-version:             0.2.0.0
+version:             0.3.0.0
 -- synopsis:
 -- description:
-homepage:            https://github.com/githubuser/ffs#readme
+homepage:            https://github.com/tcsc/ffs#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2017 Author name here
+author:              Trent Clarke
+maintainer:          trent.clarke@gmail.com
+copyright:           2017
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
@@ -88,4 +88,4 @@ test-suite ffs-test
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/ffs
+  location: https://github.com/tcsc/ffs
