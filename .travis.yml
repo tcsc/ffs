@@ -20,7 +20,7 @@ install:
 
 script:
 - stack --no-terminal test
-- wget https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh -O - --quiet | sh -s src
+- wget https://raw.github.com/ndmitchell/hlint/master/misc/travis.sh -O - --quiet | sh -s ./src
 
 before_deploy:
   - stack --no-terminal --local-bin-path . install ffs  
