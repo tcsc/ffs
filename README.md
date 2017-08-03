@@ -60,6 +60,6 @@ figured I'd stop just saying it, and automate the process away.
        the terminally masochistic.~~
  - [ ] CSV output for injection into other tools
  - [X] ~~Grouping options, e.g. by custom field, by epic, by label, etc.~~
- - [ ] Optionally roll up subtasks into parent
+ - [X] ~~Optionally roll up subtasks into parent~~
  - [ ] Debian packaging for dependency management
  - [X] ~~Display totals on table - per day, per bucket, grand total~~
