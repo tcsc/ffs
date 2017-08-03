@@ -4,7 +4,6 @@ module Ffs.TimeSpec (spec) where
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import Test.QuickCheck.Arbitrary.ADT
 import Data.Maybe
 import Data.Time.Calendar
 
@@ -21,7 +20,7 @@ instance Arbitrary Day where
     return $ ModifiedJulianDay day
 
 instance Arbitrary DayOfWeek where
-  arbitrary = genericArbitrary
+  arbitrary = arbitraryBoundedEnum
 
 
 intervalGenerator :: Spec
