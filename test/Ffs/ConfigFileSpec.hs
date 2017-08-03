@@ -20,6 +20,7 @@ password=p4ssw0r|>
 [report]
 week-ends-on = fri
 group-by = field: narf
+roll-up-subtasks = false
 
 [JIRA]
 host = https://example.com:1234/
@@ -32,6 +33,7 @@ insecure = true
       , _cfgEndOfWeek = Just Friday
       , _cfgInsecure = Just True
       , _cfgGroupBy = Just (Field "narf")
+      , _cfgRollUpSubTasks = Just False
       }
     parseConfig text `shouldBe` Right expected
 
@@ -44,5 +46,6 @@ insecure = true
       , _cfgEndOfWeek = Nothing
       , _cfgInsecure = Nothing
       , _cfgGroupBy = Nothing
+      , _cfgRollUpSubTasks = Nothing
       }
     parseConfig text `shouldBe` Right expected

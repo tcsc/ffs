@@ -84,6 +84,12 @@ configMergeSpec =
           cliOverridesConfigSpec argGroupBy (Field "bananas")
                                  cfgGroupBy (Field "narf")
                                  optGroupBy
+     context "Roll Up Subtasks" $
+       do defaultSpec optRollUpSubTasks False
+          setByConfigSpec cfgRollUpSubTasks optRollUpSubTasks True
+          setByCliSpec argRollUpSubTasks optRollUpSubTasks True
+          cliOverridesConfigSpec argRollUpSubTasks False cfgRollUpSubTasks True optRollUpSubTasks
+
      context "Target user" $
        do defaultSpec optUser ""
           it "Must be settable from the command line" $

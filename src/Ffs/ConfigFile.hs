@@ -8,6 +8,7 @@ module Ffs.ConfigFile
   , cfgEndOfWeek
   , cfgInsecure
   , cfgGroupBy
+  , cfgRollUpSubTasks
   , configFilePath
   , parseConfig
   , loadConfig
@@ -40,6 +41,7 @@ data Config = Config
   , _cfgEndOfWeek :: Maybe DayOfWeek
   , _cfgInsecure :: Maybe Bool
   , _cfgGroupBy :: Maybe Grouping
+  , _cfgRollUpSubTasks :: Maybe Bool
   } deriving (Show, Eq)
 
 makeLenses ''Config
@@ -56,6 +58,7 @@ parseConfig text = do
   pwd <- fmap T.pack <$> maybeGet cfg "login" "password"
   eow <- maybeGet cfg "report" "week-ends-on"
   group <- maybeGet cfg "report" "group-by"
+  rollUp <- maybeGet cfg "report" "roll-up-subtasks"
   host <- asUrl <$> maybeGet cfg "JIRA" "host"
   insecure <- maybeGet cfg "JIRA" "insecure"
   return $
@@ -66,6 +69,7 @@ parseConfig text = do
     , _cfgEndOfWeek = eow
     , _cfgInsecure = insecure
     , _cfgGroupBy = group
+    , _cfgRollUpSubTasks = rollUp
     }
   where
     maybeGet :: Get_C a => ConfigParser ->
@@ -90,6 +94,7 @@ emptyConfig =
   , _cfgEndOfWeek = Nothing
   , _cfgInsecure = Nothing
   , _cfgGroupBy = Nothing
+  , _cfgRollUpSubTasks = Nothing
   }
 
 loadConfig :: FilePath -> IO Config

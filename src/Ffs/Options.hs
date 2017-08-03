@@ -45,6 +45,7 @@ data FfsOptions = FfsOptions
   , _optLastDayOfWeek :: DayOfWeek
   , _optGroupBy :: Grouping
   , _optUser :: Text
+  , _optRollUpSubTasks :: Bool
   } deriving (Show, Eq)
 
 makeLenses ''FfsOptions
@@ -59,4 +60,5 @@ defaultOptions =
   , _optLastDayOfWeek = Sunday
   , _optGroupBy = Issue
   , _optUser = ""
+  , _optRollUpSubTasks = False
   }

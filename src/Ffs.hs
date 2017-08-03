@@ -138,28 +138,34 @@ main' cli = do
 
   -- get the work logs from JIRA and filter out any that aren't in our range
   -- of interest
-  rawlog <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
+  log <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
-  let log = rollUpSubtasks myIssues rawlog
+  (log', issues') <-
+    if options^.optRollUpSubTasks then do
+      let log' = rollUpSubtasks myIssues log
+      let missingIssues = Map.keys log' L.\\ issueKeys
 
-  -- work out what new issues we need to fetch so we can have info about
-  -- supertasks if necessary
-  debug $ printf "original keys: %s" (show issueKeys)
-  debug $ printf "rollup keys: %s" (show $ Map.keys log)
+      info $ "Fetching parent issues..."
+      let fetchIssues =  L.map (\k -> Jira.getIssue wreqCfg url k) missingIssues
+      extraIssues <- parallel $ fetchIssues
 
-  let missingIssues = Map.keys log L.\\ issueKeys
-  info $ "Fetching parent issues..."
-  extraIssues <- parallel $ L.map (\k -> Jira.getIssue wreqCfg url k) missingIssues
-  let allIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m) myIssues extraIssues
+      let issues' = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
+                             myIssues
+                             extraIssues
+      return (log', issues')
+
+    else
+      return (log, myIssues)
+
 
   debug $ "Building group extractor..."
 
-  groupExtractor <- mkGroupExtractor options wreqCfg url allIssues
+  groupExtractor <- mkGroupExtractor options wreqCfg url issues'
 
   debug $ "Collating timesheet..."
 
-  let ts = collateTimeSheet log groupExtractor
+  let ts = collateTimeSheet log' groupExtractor
 
   debug $ "Rendering timesheet..."
 
@@ -501,6 +507,8 @@ mergeOptions cmdline file =
     & optLastDayOfWeek ~? (cmdline^.argLastDayOfWeek)
     & optGroupBy ~? (file^.cfgGroupBy)
     & optGroupBy ~? (cmdline^.argGroupBy)
+    & optRollUpSubTasks ~? (file^.cfgRollUpSubTasks)
+    & optRollUpSubTasks ~? (cmdline^.argRollUpSubTasks)
     & optUser .~ (cmdline^.argUser)
 
 -- | Turns character echoing off on StdIn so we can enter passwords less insecurely

@@ -12,6 +12,7 @@ module Ffs.CommandLine
   , argShowVersion
   , argForce
   , argGroupBy
+  , argRollUpSubTasks
   , emptyArgs
   , parse
   ) where
@@ -37,10 +38,11 @@ data Args = Args
   , _argUrl :: Maybe URI
   , _argInsecure :: Maybe Bool
   , _argLastDayOfWeek :: Maybe DayOfWeek
-  , _argUser :: Text
   , _argShowVersion :: Bool
   , _argForce :: Bool
   , _argGroupBy :: Maybe Grouping
+  , _argRollUpSubTasks :: Maybe Bool
+  , _argUser :: Text
   } deriving (Eq, Show)
 makeLenses ''Args
 
@@ -52,10 +54,11 @@ emptyArgs = Args
   , _argUrl = Nothing
   , _argInsecure = Nothing
   , _argLastDayOfWeek = Nothing
-  , _argUser = ""
   , _argShowVersion = False
   , _argForce = False
   , _argGroupBy = Nothing
+  , _argRollUpSubTasks =Nothing
+  , _argUser = ""
 }
 
 -- |
@@ -81,7 +84,6 @@ options = Args
                                  short 'e' <>
                                  metavar "DAY" <>
                                  help "The last day of the week, as a 3-letter abbreviation (e.g. mon, tue)"))
-    <*> argument text (metavar "USERNAME")
     <*> switch (long "version" <>
                 internal <>
                 help "display version and exit")
@@ -92,7 +94,12 @@ options = Args
                                  short 'g' <>
                                  metavar "GROUP" <>
                                  help "Group hours by different criteria. Possible values are \
-                                      \issue or custom-field:<field name>"))
+                                      \issue | epic | field:<field name>"))
+    <*> (optional $ option auto (long "roll-up-subtasks" <>
+                                 short 'r' <>
+                                 value True <>
+                                 help "Roll subtasks up into the parent issue"))
+    <*> argument text (metavar "USERNAME")
 
 parse :: IO Args
 parse = execParser opts
