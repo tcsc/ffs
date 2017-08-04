@@ -26,9 +26,10 @@ build_script:
 - stack setup --no-terminal > nul
 - stack build --only-snapshot --no-terminal
 - stack --local-bin-path . install ffs
+- ps: 7z a ffs-$(.\ffs --version nonesuch)-windows.zip ffs.exe 
 
 artifacts:
-- path: ffs.exe
+- path: ffs-*-windows.zip
 
 deploy:
   - provider: GitHub
