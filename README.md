@@ -45,6 +45,8 @@ host = https://jira.example.com
 [report]
 # Set the reporting day for the timesheet. 
 week-ends-on = sun
+group-by = field: billing-code
+roll-up-subtasks: True
 ```
 
 # The name
@@ -52,6 +54,8 @@ week-ends-on = sun
 The tool is called `ffs` because its very close to what I say whenever I have 
 to double- or triple-handle timesheet information for accounting reasons. I 
 figured I'd stop just saying it, and automate the process away.
+
+I also like the supergroup with members of Franz Ferdinand and Sparks.
 
 # TODO
  - [ ] Reporting over arbitrary date ranges, rather than "the current week"
