@@ -21,7 +21,7 @@ install:
 
 script:
 - stack --no-terminal test
-- hlint src test
+- ./hlint src test
 
 before_deploy:
   - stack --no-terminal --local-bin-path . install ffs  
