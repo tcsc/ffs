@@ -46,7 +46,7 @@ host = https://jira.example.com
 # Set the reporting day for the timesheet. 
 week-ends-on = sun
 group-by = field: billing-code
-roll-up-subtasks: True
+roll-up-subtasks = True
 ```
 
 # The name
