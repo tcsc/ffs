@@ -14,14 +14,14 @@ before_install:
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-- travis_retry curl -L https://github.com/ndmitchell/hlint/releases/download/v2.0.9/hlint-2.0.9-x86_64-linux.tar.gz | tar xz
+- travis_retry curl -L https://github.com/ndmitchell/hlint/releases/download/v2.0.9/hlint-2.0.9-x86_64-linux.tar.gz | tar xz --strip-components=1
 
 install:
 - stack --no-terminal --install-ghc test --only-dependencies
 
 script:
 - stack --no-terminal test
-- ./hlint ./src ./test
+- hlint src test
 
 before_deploy:
   - stack --no-terminal --local-bin-path . install ffs  
