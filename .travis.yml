@@ -26,7 +26,8 @@ script:
 before_deploy:
   - stack --no-terminal --local-bin-path . install ffs  
   - strip ffs
-  - tar czvf ffs-$(./ffs --version nonesuch)-linux.tar.gz ffs 
+  - echo tar czv -f ffs-$(./ffs --version nonesuch)-linux.tar.gz ffs 
+  - tar czv -f ffs-$(./ffs --version nonesuch)-linux.tar.gz ffs 
 
 deploy:
   provider: releases
