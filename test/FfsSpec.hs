@@ -3,6 +3,8 @@ module FfsSpec
   ) where
 
 import Prelude hiding (log)
+import Data.Aeson as Aeson
+import Data.HashMap.Lazy as HashMap hiding ((!))
 import Data.Map.Strict as Map
 import Data.Maybe
 import Data.Monoid ((<>))
@@ -27,6 +29,7 @@ spec = do
   timeSheetCollationSpec
   configMergeSpec
   fieldFinderSpec
+  rollUpSubtaskSpec
 
 defaultUser =
   Jira.User
@@ -180,7 +183,7 @@ timeSheetCollationSpec =
     let fri = date "2017-07-20T09:01:00.001+0000"
     let sat = date "2017-07-20T09:01:00.001+0000"
     let workLog =
-          fromList
+          Map.fromList
             [ ( "FFS-01" :: Text
               , [ log & logWorkStarted .~ thu & logTimeSpent .~ 1000
                 , log & logWorkStarted .~ fri & logTimeSpent .~ 600
@@ -239,3 +242,53 @@ fieldFinderSpec =
 
     it "Should freturn Nothing on failure" $
       findGroupField "nonesuch" [] `shouldBe` Nothing
+
+rollUpSubtaskSpec :: Spec
+rollUpSubtaskSpec =
+  describe "Sub-task collator" $ do
+    let mkParent key = HashMap.fromList [ ("parent", Aeson.object [("key", key)])]
+    let mkSubTask key superTask = nullIssue & issueKey .~ key
+                                            & issueFields .~ mkParent superTask
+    let [a,b,c,d,e] = [log & logTimeSpent .~ x | x <- [1..5]]
+
+    it "Should collate subtasks into a parent" $ do
+      let [st1, st2] = [ mkSubTask k "parent" | k <- ["st-1", "st-2"] ]
+
+      let issues = Map.fromList [ (t^.issueKey, t) | t <- [st1, st2]]
+
+      let workLog = Map.fromList [ ("st-1", [a, d, e])
+                                 , ("st-2", [c, b])
+                                 ]
+      let workLog' = rollUpSubTasks issues workLog
+
+      Map.size workLog' `shouldBe` 1
+      (workLog' ! "parent")  `shouldMatchList` [a, b, c, d, e]
+
+    it "Should ignore issues without parent tasks" $ do
+      let story1 = nullIssue & issueKey .~ "story-1"
+      let story2 = nullIssue & issueKey .~ "story-2"
+      let issues = Map.fromList [ (t^.issueKey, t) | t <- [story1, story2]]
+      let workLog = Map.fromList [ ("story-1", [a, d, e])
+                                 , ("story-2", [b, c])
+                                 ]
+      let workLog' = rollUpSubTasks issues workLog
+
+      workLog' `shouldBe` workLog
+
+    it "Should distribute subtasks to multiple parents" $ do
+      let [st1, st2] = [ mkSubTask k "parent-1" | k <- ["st-1", "st-2"] ]
+      let [st3, st4] = [ mkSubTask k "parent-2" | k <- ["st-3", "st-4"] ]
+
+      let issues = Map.fromList [ (t^.issueKey, t)
+                                | t <- [ st1, st2, st3, st4 ]
+                                ]
+
+      let workLog = Map.fromList [ ("st-1", [a, e])
+                                 , ("st-2", [d])
+                                 , ("st-3", [b])
+                                 , ("st-4", [c])
+                                 ]
+      let workLog' = rollUpSubTasks issues workLog
+      Map.size workLog' `shouldBe` 2
+      (workLog' ! "parent-1") `shouldMatchList` [a, d, e]
+      (workLog' ! "parent-2") `shouldMatchList` [b, c]

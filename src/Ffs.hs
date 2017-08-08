@@ -12,6 +12,7 @@ module Ffs
     , optUser
     , findGroupField
     , mergeOptions
+    , rollUpSubTasks
     ) where
 
 import Control.Exception
@@ -129,6 +130,8 @@ main' cli = do
   info "Fetching issues worked on..."
   let query = buildQuery (options^.optUser) dateRange
   issues <- Jira.search wreqCfg url query
+
+  -- pack the search results into a map for easy indexing
   let myIssues = L.foldl' (\m i -> Map.insert (i^.issueKey) i m)
                           Map.empty
                           issues
@@ -139,9 +142,16 @@ main' cli = do
   log <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
+  -- Optionally roll up subtask work logs into their parent issue.
   (log', issues') <-
     if options^.optRollUpSubTasks then do
-      let log' = rollUpSubtasks myIssues log
+      let log' = rollUpSubTasks myIssues log
+
+      -- Now we have a bunch of new issue keys (representing the parents of
+      -- the rolled-up sub-tasks) in our log that may not exist in the issue
+      -- map, which will play merry hell with the grouping and rendering code.
+      --
+      -- We'd better figure out which ones they are and get them now...
       let missingIssues = Map.keys log' L.\\ issueKeys
 
       info "Fetching parent issues..."
@@ -155,7 +165,6 @@ main' cli = do
 
     else
       return (log, myIssues)
-
 
   debug "Building group extractor..."
 
@@ -171,22 +180,34 @@ main' cli = do
 
   return ()
 
-rollUpSubtasks :: IssueMap -> WorkLogMap -> WorkLogMap
-rollUpSubtasks issues =
+-- | Rolls subtask time logs up into the parent task log. Walks the list of
+--   worked-on issues and redistributes the logs for any issue with a parent
+--   to that parent issue. Note that the work log records themselves are not
+--   rewritten, and may still refer to the original subtask.
+rollUpSubTasks :: IssueMap -> WorkLogMap -> WorkLogMap
+rollUpSubTasks issues =
   Map.foldlWithKey rollUp Map.empty
   where
+    -- Fold function. Takes the work logs for a single issue and transfers
+    -- it to the output map, aggregating the log into the issues parent task
+    -- if it has one.
     rollUp :: WorkLogMap -> Text -> [WorkLogItem] -> WorkLogMap
     rollUp acc key logItems =
       let parent = getParent key
       in Map.alter (combineLogs logItems) parent acc
 
+    -- Concatenates a list of work log items onto an optional base list of
+    -- existing items. Used to build a combined list of work log items for
+    -- an issue with subtasks.
     combineLogs :: [WorkLogItem] -> Maybe [WorkLogItem] -> Maybe [WorkLogItem]
     combineLogs newItems existingItems =
       Just $ maybe newItems (++ newItems) existingItems
 
+    -- Get the parent for a given issue. Any issue without a parent link is
+    -- deemed to be its own parent.
     getParent :: Text -> Text
     getParent key =
-      let issue = issues ! key
+      let issue = lookupOrDie key issues
           maybeParent = Aeson.parseMaybe (\obj -> (obj .: "parent") >>= (.: "key"))
                                          (issue^.issueFields)
       in fromMaybe key maybeParent

@@ -5,6 +5,7 @@ module Ffs.Jira
   , issueKey
   , issueURI
   , issueFields
+  , nullIssue
   , SearchResults(..)
   , issuesStartAt
   , issuesMaxResults
@@ -70,8 +71,12 @@ data Issue = Issue
   , _issueURI :: Text
   , _issueFields :: Aeson.Object
   } deriving (Show, Eq)
-
 makeLenses ''Issue
+
+nullIssue = Issue { _issueKey = ""
+                  , _issueURI = ""
+                  , _issueFields = HashMap.empty
+                  }
 
 instance FromJSON Issue where
   parseJSON = withObject "Search Result" $ \obj -> do
