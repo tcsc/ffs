@@ -44,7 +44,7 @@ data FfsOptions = FfsOptions
   , _optUseInsecureTLS :: Bool
   , _optLastDayOfWeek :: DayOfWeek
   , _optGroupBy :: Grouping
-  , _optUser :: Text
+  , _optTargetUser :: Maybe Text
   , _optRollUpSubTasks :: Bool
   } deriving (Show, Eq)
 
@@ -59,6 +59,6 @@ defaultOptions =
   , _optUseInsecureTLS = False
   , _optLastDayOfWeek = Sunday
   , _optGroupBy = Issue
-  , _optUser = ""
+  , _optTargetUser = Nothing
   , _optRollUpSubTasks = False
   }

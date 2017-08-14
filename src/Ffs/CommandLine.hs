@@ -8,7 +8,7 @@ module Ffs.CommandLine
   , argUrl
   , argInsecure
   , argLastDayOfWeek
-  , argUser
+  , argTargetUser
   , argShowVersion
   , argForce
   , argGroupBy
@@ -42,7 +42,7 @@ data Args = Args
   , _argForce :: Bool
   , _argGroupBy :: Maybe Grouping
   , _argRollUpSubTasks :: Maybe Bool
-  , _argUser :: Text
+  , _argTargetUser :: Maybe Text
   } deriving (Eq, Show)
 makeLenses ''Args
 
@@ -57,8 +57,8 @@ emptyArgs = Args
   , _argShowVersion = False
   , _argForce = False
   , _argGroupBy = Nothing
-  , _argRollUpSubTasks =Nothing
-  , _argUser = ""
+  , _argRollUpSubTasks = Nothing
+  , _argTargetUser = Nothing
 }
 
 -- |
@@ -99,7 +99,7 @@ options = Args
                                short 'r' <>
                                value True <>
                                help "Roll subtasks up into the parent issue"))
-    <*> argument text (metavar "USERNAME")
+    <*> optional (argument text (metavar "USERNAME"))
 
 parse :: IO Args
 parse = execParser opts

@@ -9,6 +9,7 @@ module Ffs.ConfigFile
   , cfgInsecure
   , cfgGroupBy
   , cfgRollUpSubTasks
+  , cfgTargetUser
   , configFilePath
   , parseConfig
   , loadConfig
@@ -42,6 +43,7 @@ data Config = Config
   , _cfgInsecure :: Maybe Bool
   , _cfgGroupBy :: Maybe Grouping
   , _cfgRollUpSubTasks :: Maybe Bool
+  , _cfgTargetUser :: Maybe Text
   } deriving (Show, Eq)
 
 makeLenses ''Config
@@ -59,6 +61,7 @@ parseConfig text = do
   eow <- maybeGet cfg "report" "week-ends-on"
   group <- maybeGet cfg "report" "group-by"
   rollUp <- maybeGet cfg "report" "roll-up-subtasks"
+  targetUser <- fmap T.pack <$> maybeGet cfg "report" "target-user"
   host <- asUrl <$> maybeGet cfg "JIRA" "host"
   insecure <- maybeGet cfg "JIRA" "insecure"
   return Config
@@ -69,6 +72,7 @@ parseConfig text = do
     , _cfgInsecure = insecure
     , _cfgGroupBy = group
     , _cfgRollUpSubTasks = rollUp
+    , _cfgTargetUser = targetUser
     }
   where
     maybeGet :: Get_C a => ConfigParser ->
@@ -94,6 +98,7 @@ emptyConfig =
   , _cfgInsecure = Nothing
   , _cfgGroupBy = Nothing
   , _cfgRollUpSubTasks = Nothing
+  , _cfgTargetUser = Nothing
   }
 
 loadConfig :: FilePath -> IO Config

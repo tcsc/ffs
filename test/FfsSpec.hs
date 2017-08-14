@@ -51,54 +51,70 @@ log =
   }
 
 configMergeSpec :: Spec
-configMergeSpec =
-  describe "Merging config file & command line args" $
-  do context "Username" $
-       do defaultSpec optUsername ""
-          setByConfigSpec cfgLogin optUsername "potato"
-          setByCliSpec argLogin optUsername "duck"
-          cliOverridesConfigSpec argLogin "duck" cfgLogin "potato" optUsername
-     context "Password" $
-       do defaultSpec optPassword ""
-          setByConfigSpec cfgPassword optPassword "potato"
-          setByCliSpec argPassword optPassword "duck"
-          cliOverridesConfigSpec argPassword "duck" cfgPassword "potato" optPassword
-     context "Jira Host" $
-       do let cfgUrl = fromJust $ parseURI "http://example.com/config"
-          let cliUrl = fromJust $ parseURI "http://cli.com/cli"
-          defaultSpec optJiraHost nullURI
-          setByConfigSpec cfgHost optJiraHost cfgUrl
-          setByCliSpec argUrl optJiraHost cliUrl
-          cliOverridesConfigSpec argUrl cliUrl cfgHost cfgUrl optJiraHost
-     context "Use insecure TLS" $
-       do defaultSpec optUseInsecureTLS False
-          setByConfigSpec cfgInsecure optUseInsecureTLS True
-          setByCliSpec argInsecure optUseInsecureTLS True
-          cliOverridesConfigSpec argInsecure False cfgInsecure True optUseInsecureTLS
-     context "Last Day of Week" $
-       do defaultSpec optLastDayOfWeek Sunday
-          setByConfigSpec cfgEndOfWeek optLastDayOfWeek Tuesday
-          setByCliSpec argLastDayOfWeek optLastDayOfWeek Thursday
-          cliOverridesConfigSpec argLastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
-     context "Group by" $
-       do defaultSpec optGroupBy Options.Issue
-          setByConfigSpec cfgGroupBy optGroupBy (Field "bananas")
-          setByCliSpec argGroupBy optGroupBy (Field "bananas")
-          cliOverridesConfigSpec argGroupBy (Field "bananas")
-                                 cfgGroupBy (Field "narf")
-                                 optGroupBy
-     context "Roll Up Subtasks" $
-       do defaultSpec optRollUpSubTasks False
-          setByConfigSpec cfgRollUpSubTasks optRollUpSubTasks True
-          setByCliSpec argRollUpSubTasks optRollUpSubTasks True
-          cliOverridesConfigSpec argRollUpSubTasks False cfgRollUpSubTasks True optRollUpSubTasks
+configMergeSpec = describe "Merging config file & command line args" $ do
+  context "Username" $ do
+    defaultSpec optUsername ""
+    setByConfigSpec cfgLogin optUsername "potato"
+    setByCliSpec argLogin optUsername "duck"
+    cliOverridesConfigSpec argLogin "duck" cfgLogin "potato" optUsername
 
-     context "Target user" $
-       do defaultSpec optUser ""
-          it "Must be settable from the command line" $
-            do let args = emptyArgs & argUser .~ "Erik the Red"
-               let opts = mergeOptions args emptyConfig
-               (opts ^. optUser) `shouldBe` "Erik the Red"
+  context "Password" $ do
+    defaultSpec optPassword ""
+    setByConfigSpec cfgPassword optPassword "potato"
+    setByCliSpec argPassword optPassword "duck"
+    cliOverridesConfigSpec argPassword "duck" cfgPassword "potato" optPassword
+
+  context "Jira Host" $ do
+    let cfgUrl = fromJust $ parseURI "http://example.com/config"
+    let cliUrl = fromJust $ parseURI "http://cli.com/cli"
+    defaultSpec optJiraHost nullURI
+    setByConfigSpec cfgHost optJiraHost cfgUrl
+    setByCliSpec argUrl optJiraHost cliUrl
+    cliOverridesConfigSpec argUrl cliUrl cfgHost cfgUrl optJiraHost
+
+  context "Use insecure TLS" $ do
+    defaultSpec optUseInsecureTLS False
+    setByConfigSpec cfgInsecure optUseInsecureTLS True
+    setByCliSpec argInsecure optUseInsecureTLS True
+    cliOverridesConfigSpec argInsecure False cfgInsecure True optUseInsecureTLS
+
+  context "Last Day of Week" $ do
+    defaultSpec optLastDayOfWeek Sunday
+    setByConfigSpec cfgEndOfWeek optLastDayOfWeek Tuesday
+    setByCliSpec argLastDayOfWeek optLastDayOfWeek Thursday
+    cliOverridesConfigSpec argLastDayOfWeek Friday cfgEndOfWeek Monday optLastDayOfWeek
+
+  context "Group by" $ do
+    defaultSpec optGroupBy Options.Issue
+    setByConfigSpec cfgGroupBy optGroupBy (Field "bananas")
+    setByCliSpec argGroupBy optGroupBy (Field "bananas")
+    cliOverridesConfigSpec argGroupBy (Field "bananas")
+                           cfgGroupBy (Field "narf")
+                           optGroupBy
+  context "Roll Up Subtasks" $ do
+    defaultSpec optRollUpSubTasks False
+    setByConfigSpec cfgRollUpSubTasks optRollUpSubTasks True
+    setByCliSpec argRollUpSubTasks optRollUpSubTasks True
+    cliOverridesConfigSpec argRollUpSubTasks False cfgRollUpSubTasks True optRollUpSubTasks
+
+  context "Target user" $ do
+    defaultSpec optTargetUser Nothing
+
+    it "Must be settable from file configuration" $ do
+      let config = emptyConfig & cfgTargetUser .~ Just "some user"
+      let opts = mergeOptions emptyArgs config
+      (opts ^. optTargetUser) `shouldBe` Just "some user"
+
+    it "Must be settable from the command line" $ do
+      let args = emptyArgs & argTargetUser .~ Just "some user"
+      let opts = mergeOptions args emptyConfig
+      (opts ^. optTargetUser) `shouldBe` Just "some user"
+
+    it "Must favour cli value over file config" $ do
+      let config = emptyConfig & cfgTargetUser .~ Just "cfg-user"
+      let args = emptyArgs & argTargetUser .~ Just "cli-user"
+      let opts = mergeOptions args config
+      (opts ^. optTargetUser) `shouldBe` Just "cli-user"
 
 defaultSpec optLens def =
   it "Must honour defaults" $

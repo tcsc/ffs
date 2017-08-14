@@ -12,13 +12,17 @@ Either:
 ## Running
 
 ```bash
-$ ffs --jira https://jira.example.com $jira_username
+$ ffs --jira https://jira.example.com
 ```
 
 You will be prompted for your JIRA username & password. Note that you _can_ 
 supply both on the command line if you wish, but I recommend against it (for
 your password at any rate - you don't want it cropping up in your command 
 history if you can help it). 
+
+By default, `ffs` will assume you want to generate a timesheet for the user 
+you're logging in as. You can override this by passing a username on the 
+command line, or using the config file to specify a new default (see below).
 
 Run `ffs --help` for more info.
 

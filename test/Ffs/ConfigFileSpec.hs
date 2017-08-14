@@ -14,13 +14,14 @@ spec = describe "ConfigFile parser" $ do
   it "Must parse a valid config file" $ do
     let text = [s|
 [login]
-username=some-username
+username = some-username
 password=p4ssw0r|>
 
 [report]
 week-ends-on = fri
 group-by = field: narf
 roll-up-subtasks = false
+target-user = narf-zort-troz
 
 [JIRA]
 host = https://example.com:1234/
@@ -34,6 +35,7 @@ insecure = true
       , _cfgInsecure = Just True
       , _cfgGroupBy = Just (Field "narf")
       , _cfgRollUpSubTasks = Just False
+      , _cfgTargetUser = Just "narf-zort-troz"
       }
     parseConfig text `shouldBe` Right expected
 
@@ -47,5 +49,6 @@ insecure = true
       , _cfgInsecure = Nothing
       , _cfgGroupBy = Nothing
       , _cfgRollUpSubTasks = Nothing
+      , _cfgTargetUser = Nothing
       }
     parseConfig text `shouldBe` Right expected

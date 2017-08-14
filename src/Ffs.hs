@@ -9,12 +9,13 @@ module Ffs
     , optJiraHost
     , optUseInsecureTLS
     , optLastDayOfWeek
-    , optUser
+    , optTargetUser
     , findGroupField
     , mergeOptions
     , rollUpSubTasks
     ) where
 
+import Control.Applicative ((<|>))
 import Control.Exception
 import Control.Lens
 import Control.Concurrent.ParallelIO
@@ -113,6 +114,10 @@ main' cli = do
   credentials <- getCredentials options
   let wreqCfg = wreqConfig credentials options
 
+  -- set the target user. If one is not specified on the command line we drop
+  -- back to the user who is logging in.
+  let targetUser = fromMaybe (fst credentials) (options^.optTargetUser)
+
   localTimeZone <- getCurrentTimeZone
   now <- getZonedTime
   debug $ "Now: " ++ formatTime defaultTimeLocale "%FT%R%Q%z" now
@@ -128,7 +133,7 @@ main' cli = do
   url <- getUrl cli options
 
   info "Fetching issues worked on..."
-  let query = buildQuery (options^.optUser) dateRange
+  let query = buildQuery targetUser dateRange
   issues <- Jira.search wreqCfg url query
 
   -- pack the search results into a map for easy indexing
@@ -139,7 +144,7 @@ main' cli = do
 
   -- get the work logs from JIRA and filter out any that aren't in our range
   -- of interest
-  log <- Map.map (filterWorkLog localTimeZone dateRange (options^.optUser))
+  log <- Map.map (filterWorkLog localTimeZone dateRange targetUser)
     <$> fetchWorkLog wreqCfg url dateRange issueKeys
 
   -- Optionally roll up subtask work logs into their parent issue.
@@ -510,23 +515,18 @@ s ~? Nothing = id
 mergeOptions :: Args -> Config -> FfsOptions
 mergeOptions cmdline file =
   Options.defaultOptions
-    & optUsername ~? (file^.cfgLogin)
-    & optUsername ~? (cmdline^.argLogin)
-    & optPassword ~? (file^.cfgPassword)
-    & optPassword ~? (cmdline^.argPassword)
-    & optJiraHost ~? (file^.cfgHost)
-    & optJiraHost ~? (cmdline^.argUrl)
-    & optUseInsecureTLS ~? (file^.cfgInsecure)
-    & optUseInsecureTLS ~? (cmdline^.argInsecure)
-    & optLastDayOfWeek ~? (file^.cfgEndOfWeek)
-    & optLastDayOfWeek ~? (cmdline^.argLastDayOfWeek)
-    & optGroupBy ~? (file^.cfgGroupBy)
-    & optGroupBy ~? (cmdline^.argGroupBy)
-    & optRollUpSubTasks ~? (file^.cfgRollUpSubTasks)
-    & optRollUpSubTasks ~? (cmdline^.argRollUpSubTasks)
-    & optUser .~ (cmdline^.argUser)
+    & optUsername ~? ((cmdline^.argLogin) <|> (file^.cfgLogin))
+    & optPassword ~? ((cmdline^.argPassword) <|> (file^.cfgPassword))
+    & optJiraHost ~? ((cmdline^.argUrl) <|> (file^.cfgHost))
+    & optUseInsecureTLS ~? ((cmdline^.argInsecure) <|> (file^.cfgInsecure))
+    & optLastDayOfWeek ~? ((cmdline^.argLastDayOfWeek) <|> (file^.cfgEndOfWeek))
+    & optGroupBy ~? ((cmdline^.argGroupBy) <|> (file^.cfgGroupBy))
+    & optRollUpSubTasks ~?
+      ((cmdline^.argRollUpSubTasks) <|> (file^.cfgRollUpSubTasks))
+    & optTargetUser .~ ((cmdline^.argTargetUser) <|> (file^.cfgTargetUser))
 
--- | Turns character echoing off on StdIn so we can enter passwords less insecurely
+-- | Turns character echoing off on StdIn so we can enter passwords less
+-- insecurely
 withEcho :: Bool -> IO a -> IO a
 withEcho echo action = do
   oldValue <- hGetEcho stdin
