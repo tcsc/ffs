@@ -2,13 +2,16 @@ module Ffs.Time
   ( weekForDay
   , DayOfWeek(..)
   , formatDay
+  , getTimeInZone
   ) where
 
 import Data.Text
 import Data.Tuple.Select
+import Data.Time.Clock (getCurrentTime)
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate as WeekDate
 import Data.Time.Format
+import Data.Time.LocalTime (TimeZone(..), ZonedTime(..), utcToZonedTime)
 import Text.ParserCombinators.ReadPrec hiding (choice)
 import Text.ParserCombinators.ReadP as ReadP
 import Text.Read hiding (choice)
@@ -63,3 +66,7 @@ iso8601Day day =
     Friday -> 5
     Saturday -> 6
     Sunday -> 7
+
+
+getTimeInZone :: TimeZone -> IO ZonedTime
+getTimeInZone tz = utcToZonedTime tz <$> getCurrentTime

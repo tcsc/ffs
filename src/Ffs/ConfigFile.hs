@@ -10,6 +10,7 @@ module Ffs.ConfigFile
   , cfgGroupBy
   , cfgRollUpSubTasks
   , cfgTargetUser
+  , cfgTimeZone
   , configFilePath
   , parseConfig
   , loadConfig
@@ -24,6 +25,8 @@ import Data.ConfigFile hiding (info)
 import Data.Either
 import Data.Maybe
 import Data.Text as T
+import Data.Time.LocalTime
+import Data.Time.Format
 import Network.URI
 import System.Directory
 import System.FilePath
@@ -44,6 +47,7 @@ data Config = Config
   , _cfgGroupBy :: Maybe Grouping
   , _cfgRollUpSubTasks :: Maybe Bool
   , _cfgTargetUser :: Maybe Text
+  , _cfgTimeZone :: Maybe TimeZone
   } deriving (Show, Eq)
 
 makeLenses ''Config
@@ -64,6 +68,7 @@ parseConfig text = do
   targetUser <- fmap T.pack <$> maybeGet cfg "report" "target-user"
   host <- asUrl <$> maybeGet cfg "JIRA" "host"
   insecure <- maybeGet cfg "JIRA" "insecure"
+  tz <- maybeGet cfg "JIRA" "timezone"
   return Config
     { _cfgLogin = login
     , _cfgPassword = pwd
@@ -73,6 +78,7 @@ parseConfig text = do
     , _cfgGroupBy = group
     , _cfgRollUpSubTasks = rollUp
     , _cfgTargetUser = targetUser
+    , _cfgTimeZone = tz
     }
   where
     maybeGet :: Get_C a => ConfigParser ->
@@ -99,6 +105,7 @@ emptyConfig =
   , _cfgGroupBy = Nothing
   , _cfgRollUpSubTasks = Nothing
   , _cfgTargetUser = Nothing
+  , _cfgTimeZone = Nothing
   }
 
 loadConfig :: FilePath -> IO Config

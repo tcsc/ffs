@@ -13,11 +13,14 @@ module Ffs.CommandLine
   , argForce
   , argGroupBy
   , argRollUpSubTasks
+  , argTimeZone
   , emptyArgs
   , parse
   ) where
 
 import Data.Text
+import Data.Time.LocalTime
+import Data.Time.Format
 import Data.Semigroup ((<>))
 import Data.Version (showVersion)
 import Network.URI
@@ -42,6 +45,7 @@ data Args = Args
   , _argForce :: Bool
   , _argGroupBy :: Maybe Grouping
   , _argRollUpSubTasks :: Maybe Bool
+  , _argTimeZone :: Maybe TimeZone
   , _argTargetUser :: Maybe Text
   } deriving (Eq, Show)
 makeLenses ''Args
@@ -58,6 +62,7 @@ emptyArgs = Args
   , _argForce = False
   , _argGroupBy = Nothing
   , _argRollUpSubTasks = Nothing
+  , _argTimeZone = Nothing
   , _argTargetUser = Nothing
 }
 
@@ -99,6 +104,10 @@ options = Args
                                short 'r' <>
                                value True <>
                                help "Roll subtasks up into the parent issue"))
+    <*> optional (option timezone (long "timezone" <>
+                                   short 'z' <>
+                                   metavar "±HHMM" <>
+                                   help "Your timezone. Defaults to the system timezone."))
     <*> optional (argument text (metavar "USERNAME"))
 
 parse :: IO Args
@@ -110,6 +119,9 @@ parse = execParser opts
 
 uri :: ReadM URI
 uri = maybeReader parseURI
+
+timezone :: ReadM TimeZone
+timezone = maybeReader $ parseTimeM True defaultTimeLocale "%Z"
 
 text :: ReadM Text
 text = maybeReader $ Just . pack

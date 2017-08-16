@@ -5,6 +5,7 @@ module Ffs.Options where
 import Control.Lens
 import Control.Lens.TH
 import Data.Text
+import Data.Time.LocalTime (TimeZone)
 import Network.URI
 import System.Log.Logger as Log
 import Text.ParserCombinators.ReadPrec hiding (choice)
@@ -46,6 +47,7 @@ data FfsOptions = FfsOptions
   , _optGroupBy :: Grouping
   , _optTargetUser :: Maybe Text
   , _optRollUpSubTasks :: Bool
+  , _optTimeZone :: Maybe TimeZone
   } deriving (Show, Eq)
 
 makeLenses ''FfsOptions
@@ -61,4 +63,5 @@ defaultOptions =
   , _optGroupBy = Issue
   , _optTargetUser = Nothing
   , _optRollUpSubTasks = False
+  , _optTimeZone = Nothing
   }

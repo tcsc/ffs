@@ -2,6 +2,7 @@
 module Ffs.ConfigFileSpec (spec) where
 
 import Data.String.QQ
+import Data.Time.LocalTime
 import Network.URI
 import Test.Hspec
 
@@ -26,6 +27,7 @@ target-user = narf-zort-troz
 [JIRA]
 host = https://example.com:1234/
 insecure = true
+timezone = -0123
 |]
     let expected = Config {
         _cfgLogin = Just "some-username"
@@ -36,6 +38,7 @@ insecure = true
       , _cfgGroupBy = Just (Field "narf")
       , _cfgRollUpSubTasks = Just False
       , _cfgTargetUser = Just "narf-zort-troz"
+      , _cfgTimeZone = Just $ minutesToTimeZone (-83)
       }
     parseConfig text `shouldBe` Right expected
 
@@ -50,5 +53,6 @@ insecure = true
       , _cfgGroupBy = Nothing
       , _cfgRollUpSubTasks = Nothing
       , _cfgTargetUser = Nothing
+      , _cfgTimeZone = Nothing
       }
     parseConfig text `shouldBe` Right expected

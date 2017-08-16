@@ -118,8 +118,10 @@ main' cli = do
   -- back to the user who is logging in.
   let targetUser = fromMaybe (fst credentials) (options^.optTargetUser)
 
-  localTimeZone <- getCurrentTimeZone
-  now <- getZonedTime
+  localTimeZone <- case options^.optTimeZone of
+                     Just tz -> return tz
+                     Nothing -> getCurrentTimeZone
+  now <- getTimeInZone localTimeZone
   debug $ "Now: " ++ formatTime defaultTimeLocale "%FT%R%Q%z" now
 
   let today = localDay (zonedTimeToLocalTime now)
@@ -523,6 +525,7 @@ mergeOptions cmdline file =
     & optGroupBy ~? ((cmdline^.argGroupBy) <|> (file^.cfgGroupBy))
     & optRollUpSubTasks ~?
       ((cmdline^.argRollUpSubTasks) <|> (file^.cfgRollUpSubTasks))
+    & optTimeZone .~ ((cmdline^.argTimeZone) <|> (file^.cfgTimeZone))
     & optTargetUser .~ ((cmdline^.argTargetUser) <|> (file^.cfgTargetUser))
 
 -- | Turns character echoing off on StdIn so we can enter passwords less

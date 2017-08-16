@@ -97,24 +97,21 @@ configMergeSpec = describe "Merging config file & command line args" $ do
     setByCliSpec argRollUpSubTasks optRollUpSubTasks True
     cliOverridesConfigSpec argRollUpSubTasks False cfgRollUpSubTasks True optRollUpSubTasks
 
+  context "Timezone" $ do
+    defaultSpec optTimeZone Nothing
+    maybeSetByConfigSpec cfgTimeZone optTimeZone (minutesToTimeZone (-83))
+    maybeSetByCliSpec argTimeZone optTimeZone (minutesToTimeZone 600)
+    maybeCliOverridesConfigSpec argTimeZone (minutesToTimeZone 600)
+                                cfgTimeZone (minutesToTimeZone (-83))
+                                optTimeZone
+
   context "Target user" $ do
     defaultSpec optTargetUser Nothing
-
-    it "Must be settable from file configuration" $ do
-      let config = emptyConfig & cfgTargetUser .~ Just "some user"
-      let opts = mergeOptions emptyArgs config
-      (opts ^. optTargetUser) `shouldBe` Just "some user"
-
-    it "Must be settable from the command line" $ do
-      let args = emptyArgs & argTargetUser .~ Just "some user"
-      let opts = mergeOptions args emptyConfig
-      (opts ^. optTargetUser) `shouldBe` Just "some user"
-
-    it "Must favour cli value over file config" $ do
-      let config = emptyConfig & cfgTargetUser .~ Just "cfg-user"
-      let args = emptyArgs & argTargetUser .~ Just "cli-user"
-      let opts = mergeOptions args config
-      (opts ^. optTargetUser) `shouldBe` Just "cli-user"
+    maybeSetByConfigSpec cfgTargetUser optTargetUser "some user"
+    maybeSetByCliSpec argTargetUser optTargetUser "some user"
+    maybeCliOverridesConfigSpec argTargetUser "cli-user"
+                                cfgTargetUser "cfg-user"
+                                optTargetUser
 
 defaultSpec optLens def =
   it "Must honour defaults" $
@@ -127,18 +124,36 @@ setByConfigSpec cfgLens optLens value =
      let opts = mergeOptions emptyArgs config
      (opts ^. optLens) `shouldBe` value
 
+maybeSetByConfigSpec cfgLens optLens value =
+  it "Must be settable from file configuration" $
+  do let config = emptyConfig & cfgLens ?~ value
+     let opts = mergeOptions emptyArgs config
+     (opts ^. optLens) `shouldBe` Just value
+
 setByCliSpec cliLens optLens value =
   it "Must be settable from the command line" $
   do let args = emptyArgs & cliLens ?~ value
      let opts = mergeOptions args emptyConfig
      (opts ^. optLens) `shouldBe` value
 
+maybeSetByCliSpec cliLens optLens value =
+  it "Must be settable from the command line" $
+  do let args = emptyArgs & cliLens ?~ value
+     let opts = mergeOptions args emptyConfig
+     (opts ^. optLens) `shouldBe` Just value
+
 cliOverridesConfigSpec cliLens cliValue cfgLens cfgValue optLens =
+  cmdLineOverridesConfig id cliLens cliValue cfgLens cfgValue optLens
+
+maybeCliOverridesConfigSpec cliLens cliValue cfgLens cfgValue optLens =
+  cmdLineOverridesConfig Just cliLens cliValue cfgLens cfgValue optLens
+
+cmdLineOverridesConfig pack cliLens cliValue cfgLens cfgValue optLens =
   it "Must favour cli value over file config" $
   do let config = emptyConfig & cfgLens ?~ cfgValue
      let args = emptyArgs & cliLens ?~ cliValue
      let opts = mergeOptions args config
-     (opts ^. optLens) `shouldBe` cliValue
+     (opts ^. optLens) `shouldBe` pack cliValue
 
 workLogFilterSpec :: Spec
 workLogFilterSpec =
