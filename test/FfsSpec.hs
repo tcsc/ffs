@@ -142,18 +142,20 @@ maybeSetByCliSpec cliLens optLens value =
      let opts = mergeOptions args emptyConfig
      (opts ^. optLens) `shouldBe` Just value
 
+withMergedConfigDo cliLens cliValue cfgLens cfgValue fn =
+  it "Must favour cli value over file config" $
+    do let config = emptyConfig & cfgLens ?~ cfgValue
+       let args = emptyArgs & cliLens ?~ cliValue
+       let opts = mergeOptions args config
+       fn opts
+
 cliOverridesConfigSpec cliLens cliValue cfgLens cfgValue optLens =
-  cmdLineOverridesConfig id cliLens cliValue cfgLens cfgValue optLens
+  withMergedConfigDo cliLens cliValue cfgLens cfgValue
+    (\opts -> (opts ^. optLens) `shouldBe` cliValue)
 
 maybeCliOverridesConfigSpec cliLens cliValue cfgLens cfgValue optLens =
-  cmdLineOverridesConfig Just cliLens cliValue cfgLens cfgValue optLens
-
-cmdLineOverridesConfig pack cliLens cliValue cfgLens cfgValue optLens =
-  it "Must favour cli value over file config" $
-  do let config = emptyConfig & cfgLens ?~ cfgValue
-     let args = emptyArgs & cliLens ?~ cliValue
-     let opts = mergeOptions args config
-     (opts ^. optLens) `shouldBe` pack cliValue
+  withMergedConfigDo cliLens cliValue cfgLens cfgValue
+    (\opts -> (opts ^. optLens) `shouldBe` Just cliValue)
 
 workLogFilterSpec :: Spec
 workLogFilterSpec =
