@@ -172,7 +172,8 @@ workLogFilterSpec =
                 , log & logAuthor .~ targetUser & logTimeSpent .~ 2
                 , log & logAuthor .~ targetUser & logTimeSpent .~ 3
                 ]
-          let dateRange = (fromGregorian 2017 07 20, fromGregorian 2017 07 26)
+          let dateRange = DateRange (fromGregorian 2017 07 20,
+                                     fromGregorian 2017 07 26)
           filterWorkLog utc dateRange "target" workLog `shouldBe`
             [workLog !! 1, workLog !! 5, workLog !! 6]
 
@@ -186,7 +187,8 @@ workLogFilterSpec =
                 , log & logWorkStarted .~ date "2017-07-26T23:59:99.999+0000"
                 , log & logWorkStarted .~ date "2017-07-27T23:00:00.000+0000"
                 ]
-          let dateRange = (fromGregorian 2017 07 20, fromGregorian 2017 07 26)
+          let dateRange = DateRange (fromGregorian 2017 07 20,
+                                     fromGregorian 2017 07 26)
           filterWorkLog utc dateRange "default" workLog `shouldBe`
             [workLog !! 1, workLog !! 2, workLog !! 3, workLog !! 4]
 
@@ -202,7 +204,8 @@ workLogFilterSpec =
                 , log & logWorkStarted .~ date "2017-07-27T05:00:99.999+0600"
                 , log & logWorkStarted .~ date "2017-07-27T23:00:00.000+0000"
                 ]
-          let dateRange = (fromGregorian 2017 07 20, fromGregorian 2017 07 26)
+          let dateRange = DateRange (fromGregorian 2017 07 20,
+                                     fromGregorian 2017 07 26)
           filterWorkLog utc dateRange "default" workLog `shouldBe`
             [workLog !! 1, workLog !! 2, workLog !! 3, workLog !! 4]
 

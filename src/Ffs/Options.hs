@@ -4,6 +4,7 @@ module Ffs.Options where
 
 import Control.Lens
 import Control.Lens.TH
+import Data.Time.Calendar
 import Data.Text
 import Data.Time.LocalTime (TimeZone)
 import Network.URI
@@ -36,7 +37,6 @@ instance Read Grouping where
         ReadP.eof
         return Epic
 
-
 data FfsOptions = FfsOptions
   { _optUsername :: Text
   , _optPassword :: Text
@@ -48,6 +48,7 @@ data FfsOptions = FfsOptions
   , _optTargetUser :: Maybe Text
   , _optRollUpSubTasks :: Bool
   , _optTimeZone :: Maybe TimeZone
+  , _optDateRange :: Maybe DateRange
   } deriving (Show, Eq)
 
 makeLenses ''FfsOptions
@@ -64,4 +65,5 @@ defaultOptions =
   , _optTargetUser = Nothing
   , _optRollUpSubTasks = False
   , _optTimeZone = Nothing
+  , _optDateRange = Nothing
   }

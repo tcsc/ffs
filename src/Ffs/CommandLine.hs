@@ -14,6 +14,7 @@ module Ffs.CommandLine
   , argGroupBy
   , argRollUpSubTasks
   , argTimeZone
+  , argDateRange
   , emptyArgs
   , parse
   ) where
@@ -30,7 +31,7 @@ import Paths_ffs (version)
 import System.Log.Logger as Log
 import Text.Printf
 
-import Ffs.Time (DayOfWeek(..))
+import Ffs.Time (DayOfWeek(..), DateRange(..))
 import Ffs.Options as Options
 
 -- | Command line arguments ar parsed by optparse
@@ -46,6 +47,7 @@ data Args = Args
   , _argGroupBy :: Maybe Grouping
   , _argRollUpSubTasks :: Maybe Bool
   , _argTimeZone :: Maybe TimeZone
+  , _argDateRange :: Maybe DateRange
   , _argTargetUser :: Maybe Text
   } deriving (Eq, Show)
 makeLenses ''Args
@@ -63,6 +65,7 @@ emptyArgs = Args
   , _argGroupBy = Nothing
   , _argRollUpSubTasks = Nothing
   , _argTimeZone = Nothing
+  , _argDateRange = Nothing
   , _argTargetUser = Nothing
 }
 
@@ -108,6 +111,12 @@ options = Args
                                    short 'z' <>
                                    metavar "±HHMM" <>
                                    help "Your timezone. Defaults to the system timezone."))
+    <*> optional (option auto (long "dates" <>
+                               short 'd' <>
+                               metavar "YYYY-MM-DD..YYYY-MM-DD" <>
+                               help "Report on a given date range. Defaults to \
+                                    \the current week as bound by the week-\
+                                    \ends-on setting."))
     <*> optional (argument text (metavar "USERNAME"))
 
 parse :: IO Args

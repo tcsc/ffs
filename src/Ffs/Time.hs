@@ -3,8 +3,10 @@ module Ffs.Time
   , DayOfWeek(..)
   , formatDay
   , getTimeInZone
+  , DateRange(..)
   ) where
 
+import Data.Char (isDigit)
 import Data.Text
 import Data.Tuple.Select
 import Data.Time.Clock (getCurrentTime)
@@ -38,9 +40,40 @@ instance Read DayOfWeek where
     sat = parseDay "sat" Saturday
     sun = parseDay "sun" Sunday
 
+newtype DateRange = DateRange (Day, Day)
+  deriving (Eq)
+
+instance Show DateRange where
+  show (DateRange (start, end)) =
+    show start ++ ".." ++ show end
+
+instance Read DateRange where
+  readPrec = lift $ do
+      start <- date
+      ReadP.string ".."
+      end <- date
+      if start > end
+        then fail "Invalid range: start > end"
+        else return $ DateRange (start, end)
+    where
+      number :: Int -> ReadP Int
+      number digits = read <$> ReadP.count digits (ReadP.satisfy isDigit)
+
+      date :: ReadP Day
+      date = do
+        year <- number 4
+        ReadP.char '-'
+        month <- number 2
+        ReadP.char '-'
+        day <- number 2
+        case fromGregorianValid (fromIntegral year) month day of
+          Just day -> return day
+          Nothing -> fail "Invalid date"
+
+
 -- | Generates an inclusive date range representing a week that includes a given day
-weekForDay :: Day -> DayOfWeek -> (Day, Day)
-weekForDay day weekEndsOn = (rangeStart, rangeEnd)
+weekForDay :: Day -> DayOfWeek -> DateRange
+weekForDay day weekEndsOn = DateRange (rangeStart, rangeEnd)
   where
     dayOfWeek = toInteger (sel3 $ toWeekDate day) - 1
     endOfWeek = iso8601Day weekEndsOn - 1

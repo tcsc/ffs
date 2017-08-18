@@ -57,7 +57,6 @@ err = Log.errorM "main"
 info = Log.infoM "main"
 debug = Log.debugM "main"
 
-type DateRange = (Day, Day)
 type Credentials = (Text, Text)
 type IssueMap = Map Text Issue
 type WorkLogMap = Map Text [WorkLogItem]
@@ -121,14 +120,15 @@ main' cli = do
   localTimeZone <- case options^.optTimeZone of
                      Just tz -> return tz
                      Nothing -> getCurrentTimeZone
-  now <- getTimeInZone localTimeZone
-  debug $ "Now: " ++ formatTime defaultTimeLocale "%FT%R%Q%z" now
 
-  let today = localDay (zonedTimeToLocalTime now)
-  debug $ "Today: " ++ formatDay today
-  let dateRange = weekForDay today (options^.optLastDayOfWeek)
-  debug $ printf "Week range:  %s - %s:" (formatDay $ fst dateRange)
-    (formatDay $ snd dateRange)
+  dateRange <- case options^.optDateRange of
+                 Just r -> return r
+                 Nothing -> do
+                   now <- getTimeInZone localTimeZone
+                   let today = localDay (zonedTimeToLocalTime now)
+                   return $ weekForDay today (options^.optLastDayOfWeek)
+
+  debug $ printf "Search range:  %s" (show dateRange)
 
   -- force evaluation of the url now, otherwise we it won't know its bad until
   -- we try to use it.
@@ -221,7 +221,7 @@ rollUpSubTasks issues =
 
 -- | Renders a timesheet as a table
 renderTimeSheet :: DateRange -> TimeSheet -> String
-renderTimeSheet (start, end) timeSheet =
+renderTimeSheet (DateRange (start, end)) timeSheet =
   render $ hsep 2 top (bucketAxis : cols ++ [bucketTotals])
   where
     bucketAxis =
@@ -527,6 +527,7 @@ mergeOptions cmdline file =
       ((cmdline^.argRollUpSubTasks) <|> (file^.cfgRollUpSubTasks))
     & optTimeZone .~ ((cmdline^.argTimeZone) <|> (file^.cfgTimeZone))
     & optTargetUser .~ ((cmdline^.argTargetUser) <|> (file^.cfgTargetUser))
+    & optDateRange .~ (cmdline^.argDateRange)
 
 -- | Turns character echoing off on StdIn so we can enter passwords less
 -- insecurely
@@ -556,7 +557,7 @@ getCredentials args = do
 -- two dates (inclusive)
 --
 buildQuery :: Text -> DateRange -> Text
-buildQuery user (start, end) =
+buildQuery user (DateRange (start, end)) =
   let s = formatDay start
       e = formatDay end
       jql = printf "worklogAuthor = %s AND worklogDate >= %s AND worklogDate <= %s"
@@ -571,7 +572,7 @@ fetchWorkLog :: Wreq.Options ->
                 URI ->
                 DateRange ->
                 [Text] -> IO (Map Text [WorkLogItem])
-fetchWorkLog cfg url (start, end) keys = do
+fetchWorkLog cfg url (DateRange (start, end)) keys = do
   info "Fetching work logs..."
   let tasks = L.map getLog keys
   Map.fromList <$> parallel tasks
@@ -591,7 +592,7 @@ fetchWorkLog cfg url (start, end) keys = do
 -- a bit simpler.
 --
 filterWorkLog :: TimeZone -> DateRange -> Text -> [WorkLogItem] -> [WorkLogItem]
-filterWorkLog localTimeZone (start, end) username =
+filterWorkLog localTimeZone (DateRange (start, end)) username =
   L.filter p . L.map localiseTimeStamp
   where
     localiseTimeStamp :: WorkLogItem -> WorkLogItem
