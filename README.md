@@ -62,7 +62,7 @@ figured I'd stop just saying it, and automate the process away.
 I also like the supergroup with members of Franz Ferdinand and Sparks.
 
 # TODO
- - [ ] Reporting over arbitrary date ranges, rather than "the current week"
+ - [X] ~~Reporting over arbitrary date ranges, rather than "the current week"~~
  - [X] ~~Refuse to use unencypted HTTP, as this will send your username and 
        password in essentially clear text. Maybe with a `--force` option for 
        the terminally masochistic.~~
