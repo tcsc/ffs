@@ -66,7 +66,7 @@ I also like the supergroup with members of Franz Ferdinand and Sparks.
  - [X] ~~Refuse to use unencypted HTTP, as this will send your username and 
        password in essentially clear text. Maybe with a `--force` option for 
        the terminally masochistic.~~
- - [ ] CSV output for injection into other tools
+ - [X] ~~CSV output for injection into other tools~~
  - [X] ~~Grouping options, e.g. by custom field, by epic, by label, etc.~~
  - [X] ~~Optionally roll up subtasks into parent~~
  - [ ] Debian packaging for dependency management

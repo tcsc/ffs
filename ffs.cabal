@@ -30,6 +30,7 @@ library
                      , containers
                      , ConfigFile
                      , connection
+                     , csv
                      , directory
                      , filepath
                      , hslogger

@@ -22,6 +22,7 @@ import Control.Concurrent.ParallelIO
 import Control.Monad
 import Data.Aeson as Aeson
 import Data.Aeson.Types as Aeson
+import qualified Data.ByteString as ByteString (writeFile)
 import Data.HashMap.Lazy as HashMap hiding ((!))
 import Data.List as L
 import Data.Map.Strict as Map
@@ -44,6 +45,7 @@ import System.Log.Logger as Log
 import qualified System.Log.Handler.Simple as Log
 import System.Exit (ExitCode, exitWith, exitFailure)
 import System.IO
+import Text.CSV
 import Text.PrettyPrint.Boxes as Box
 import Text.Printf
 
@@ -174,16 +176,19 @@ main' cli = do
       return (log, myIssues)
 
   debug "Building group extractor..."
-
   groupExtractor <- mkGroupExtractor options wreqCfg url issues'
 
   debug "Collating timesheet..."
-
   let ts = collateTimeSheet log' groupExtractor
 
-  debug "Rendering timesheet..."
+  case options^.optCsvFile of
+    Nothing -> do
+      debug "Rendering timesheet..."
+      putStrLn $ renderTimeSheet dateRange ts
 
-  putStrLn $ renderTimeSheet dateRange ts
+    Just path ->
+      writeCsv path dateRange ts
+
 
   return ()
 
@@ -230,10 +235,7 @@ renderTimeSheet (DateRange (start, end)) timeSheet =
           items = L.map (Box.text . T.unpack) buckets
       in Box.vcat left (header : items ++ [total])
 
-    -- Extract the list of buckets from the time sheet. Note that the item order
-    -- returned here basically defines the table order
-    buckets :: [Text]
-    buckets = Set.elems $ Map.foldlWithKey extractBucket Set.empty timeSheet
+    buckets = timeSheetBuckets timeSheet
 
     bucketTotals :: Box
     bucketTotals =
@@ -246,16 +248,10 @@ renderTimeSheet (DateRange (start, end)) timeSheet =
     timeBox :: Int -> Box
     timeBox = Box.text . fmtTime
 
-    -- Extract the bucket name from the time sheet key and inject it into the
-    -- set that is accumulating all of the unique bucket names
-    extractBucket :: Set Text -> (Day, Text) -> Int -> Set Text
-    extractBucket keys (_, k) _ = Set.insert k keys
-
     -- Total value of all time worked for a given bucket
     bucketTotal :: Text -> Int
     bucketTotal bucket =
       let addTimeIfInBucket (_, b) v acc = acc + if b == bucket then v else 0
-
       in Map.foldrWithKey addTimeIfInBucket 0 timeSheet
 
     -- Generate the columns for the table
@@ -268,34 +264,70 @@ renderTimeSheet (DateRange (start, end)) timeSheet =
     renderDay d =
       let header = Box.text $ formatTime defaultTimeLocale "%a %F" d
           items = L.map (fmtBucketDay d) buckets
-          total = L.foldl' (\t b -> let i = fromMaybe 0 $ timeForBucket d b
+          total = L.foldl' (\t b -> let e = timeSheetEntryFor d b timeSheet
+                                        i = fromMaybe 0 e
                                     in t + i)
                            0
                            buckets
       in Box.vcat right $ (header : items) ++ [Box.text $ fmtTime total]
 
-    -- Get the time for a bucket, which may be "Nothing"
-    timeForBucket :: Day -> Text -> Maybe Int
-    timeForBucket day bucket = Map.lookup (day, bucket) timeSheet
-
     -- Format the time spent on a given bucket on a given day.
     fmtBucketDay :: Day -> Text -> Box
     fmtBucketDay day bucket =
-      let value = fromMaybe "" (fmtTime <$> timeForBucket day bucket)
+      let text = fmtTime <$> timeSheetEntryFor day bucket timeSheet
+          value = fromMaybe "" text
       in Box.text value
 
-    fmtTime :: Int -> String
-    fmtTime seconds =
-      let hours = (fromIntegral seconds / 3600.0) :: Float
-      in printf "%f" hours
+    days = genDayRange start end
 
-    days = L.unfoldr genDay start
+fmtTime :: Int -> String
+fmtTime seconds =
+  let hours = (fromIntegral seconds / 3600.0) :: Float
+  in printf "%f" hours
 
-    genDay :: Day -> Maybe (Day, Day)
+-- | Get the list of all the unique time buckets used by the time sheet.
+timeSheetBuckets :: TimeSheet -> [Text]
+timeSheetBuckets ts = Set.elems $ Map.foldlWithKey extractBucket Set.empty ts
+  where
+    -- Extract the bucket name from the time sheet key and inject it into the
+    -- set that is accumulating all of the unique bucket names
+    extractBucket :: Set Text -> (Day, Text) -> Int -> Set Text
+    extractBucket keys (_, k) _ = Set.insert k keys
+
+-- Get the time for a bucket on a given day, which may be "Nothing"
+timeSheetEntryFor :: Day -> Text -> TimeSheet -> Maybe Int
+timeSheetEntryFor day bucket = Map.lookup (day, bucket)
+
+
+genDayRange :: Day -> Day -> [Day]
+genDayRange start end = L.unfoldr genDay start
+  where
     genDay day =
       if day <= end
         then Just (day, addDays 1 day)
         else Nothing
+
+
+compileCsv :: DateRange -> TimeSheet -> CSV
+compileCsv (DateRange (start,end)) timeSheet =
+  let days = genDayRange start end
+      buckets = timeSheetBuckets timeSheet
+      fmtDay = formatTime defaultTimeLocale "%a %F"
+      header = "" : L.map fmtDay days
+      fmtRow ds b = (unpack b) : L.map (fmtBucketDay b) days
+      fmtBucketDay b day =
+        let text = fmtTime <$> timeSheetEntryFor day b timeSheet
+        in fromMaybe "" text
+      rows = L.map (fmtRow days) buckets
+  in header : rows
+
+writeCsv :: FilePath -> DateRange -> TimeSheet -> IO ()
+writeCsv filename dateRange timeSheet = do
+  debug $ printf "Compiling report..."
+  let csv = compileCsv dateRange timeSheet
+  let text = (encodeUtf8 . pack) $ printCSV csv
+  debug $ printf "Writing CSV report to %s" filename
+  ByteString.writeFile filename text
 
 -- | Extracts the JIRA url from the application options and validates it.
 -- Explicitly forces the evaluation of the URL to make sure the validation
@@ -528,6 +560,7 @@ mergeOptions cmdline file =
     & optTimeZone .~ ((cmdline^.argTimeZone) <|> (file^.cfgTimeZone))
     & optTargetUser .~ ((cmdline^.argTargetUser) <|> (file^.cfgTargetUser))
     & optDateRange .~ (cmdline^.argDateRange)
+    & optCsvFile .~ (cmdline^.argCsvFile)
 
 -- | Turns character echoing off on StdIn so we can enter passwords less
 -- insecurely

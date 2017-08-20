@@ -9,6 +9,7 @@ import Data.Text
 import Data.Time.LocalTime (TimeZone)
 import Network.URI
 import System.Log.Logger as Log
+import System.FilePath
 import Text.ParserCombinators.ReadPrec hiding (choice)
 import Text.ParserCombinators.ReadP as ReadP
 import Text.Read hiding (choice)
@@ -49,6 +50,7 @@ data FfsOptions = FfsOptions
   , _optRollUpSubTasks :: Bool
   , _optTimeZone :: Maybe TimeZone
   , _optDateRange :: Maybe DateRange
+  , _optCsvFile :: Maybe FilePath
   } deriving (Show, Eq)
 
 makeLenses ''FfsOptions
@@ -66,4 +68,5 @@ defaultOptions =
   , _optRollUpSubTasks = False
   , _optTimeZone = Nothing
   , _optDateRange = Nothing
+  , _optCsvFile = Nothing
   }

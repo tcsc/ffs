@@ -15,6 +15,7 @@ module Ffs.CommandLine
   , argRollUpSubTasks
   , argTimeZone
   , argDateRange
+  , argCsvFile
   , emptyArgs
   , parse
   ) where
@@ -29,6 +30,7 @@ import Control.Lens.TH
 import Options.Applicative
 import Paths_ffs (version)
 import System.Log.Logger as Log
+import System.FilePath
 import Text.Printf
 
 import Ffs.Time (DayOfWeek(..), DateRange(..))
@@ -48,6 +50,7 @@ data Args = Args
   , _argRollUpSubTasks :: Maybe Bool
   , _argTimeZone :: Maybe TimeZone
   , _argDateRange :: Maybe DateRange
+  , _argCsvFile :: Maybe FilePath
   , _argTargetUser :: Maybe Text
   } deriving (Eq, Show)
 makeLenses ''Args
@@ -66,6 +69,7 @@ emptyArgs = Args
   , _argRollUpSubTasks = Nothing
   , _argTimeZone = Nothing
   , _argDateRange = Nothing
+  , _argCsvFile = Nothing
   , _argTargetUser = Nothing
 }
 
@@ -117,6 +121,10 @@ options = Args
                                help "Report on a given date range. Defaults to \
                                     \the current week as bound by the week-\
                                     \ends-on setting."))
+    <*> optional (strOption   (long "csv" <>
+                               short 'c' <>
+                               metavar "FILENAME" <>
+                               help "Output CSV file instead of rendering to screen."))
     <*> optional (argument text (metavar "USERNAME"))
 
 parse :: IO Args
