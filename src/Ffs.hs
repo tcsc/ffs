@@ -314,7 +314,7 @@ compileCsv (DateRange (start,end)) timeSheet =
       buckets = timeSheetBuckets timeSheet
       fmtDay = formatTime defaultTimeLocale "%a %F"
       header = "" : L.map fmtDay days
-      fmtRow ds b = (unpack b) : L.map (fmtBucketDay b) days
+      fmtRow ds b = unpack b : L.map (fmtBucketDay b) days
       fmtBucketDay b day =
         let text = fmtTime <$> timeSheetEntryFor day b timeSheet
         in fromMaybe "" text
